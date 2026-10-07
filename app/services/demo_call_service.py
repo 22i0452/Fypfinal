@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 from app.services.appointment_service import AppointmentError
 from app.services.booking_flow import OPENING as BOOKING_OPENING
-from app.services.booking_flow import SLOT_BY_KEY, BookingFlow
+from app.services.booking_flow import SLOT_BY_KEY, BookingFlow, spoken_yes_no
 from app.services.receptionist_integration_service import (
     ReceptionistBooking,
     ReceptionistIntake,
@@ -231,12 +231,25 @@ class DemoCallService:
 
     def _booking_turn(self, scenario_id: str, history: list[dict[str, str]], clean: str) -> dict[str, Any]:
         flow = BookingFlow.from_history(history)
+        flow.recent_turns = [item for item in history if item.get("role") in {"user", "assistant"}][-4:]
         today = datetime.now(_CLINIC_TIMEZONE).date()
-        extracted = self._extract(flow, clean)
-        urdu, english = flow.handle(clean, extracted, today=today)
+        from app.services.demo_stt import transcript_issue
+        issue = transcript_issue(clean)
+        extracted = {"needs_review": True, "fields": {}, "interpretation": {"ur": clean, "en": ""}} if issue == "prompt_echo" else self._extract(flow, clean)
+        interpretation = extracted.get("interpretation")
+        if not isinstance(interpretation, dict):
+            fields = extracted.get("fields") or {}
+            fields = fields if isinstance(fields, dict) else {}
+            interpretation = {"ur": clean, "en": "; ".join(str(v.get("en", "")) for v in fields.values() if isinstance(v, dict))}
+        interpretation = {key: str(interpretation.get(key) or "")[:800] for key in ("ur", "en")}
+        review = extracted.get("needs_review") is True
+        if review:
+            urdu, english = "اس جواب کا ایک حصہ واضح نہیں۔ براہ کرم اسے درست کریں یا دوبارہ بتائیں۔", "Part of that answer is uncertain. Edit it or say it again; your collected details are retained."
+        else:
+            urdu, english = flow.handle(clean, extracted, today=today)
         reply = f"{urdu}\n{english}"
-        # The transcript is display-only here (the LLM never sees it), so keep
-        # it bounded; the call state carries every collected detail.
+        # Keep display history bounded. Only the last four caller/agent turns
+        # and collected fields are supplied as context to the extractor.
         transcript = [
             {"role": str(item.get("role")), "content": str(item.get("content") or "")}
             for item in history or []
@@ -250,6 +263,7 @@ class DemoCallService:
             "history": [flow.state_message(), *transcript[-20:]],
             "booking_complete": flow.done,
             "process": {**flow.process_state(), "extractor":extracted.get("_process_metadata")},
+            "understanding": {"raw": clean, **interpretation, "needs_review": review},
         }
 
     def finish(
@@ -258,6 +272,7 @@ class DemoCallService:
         scenario_id: str,
         history: list[dict[str, str]],
         integration: ReceptionistIntegrationService,
+        preferred_practitioner_id: str = "",
     ) -> dict[str, Any]:
         """Save what the demo booking call collected as a real patient intake and booking.
 
@@ -304,7 +319,7 @@ class DemoCallService:
             workflow_state=created.get("workflow_state", ""),
             intake_token=flow.token,
             revision=1,
-            booking=self._book_from_call(flow, created, integration),
+            booking=self._book_from_call(flow, created, integration, preferred_practitioner_id),
         )
         return result
 
@@ -313,6 +328,7 @@ class DemoCallService:
         flow: BookingFlow,
         created: dict[str, Any],
         integration: ReceptionistIntegrationService,
+        preferred_practitioner_id: str = "",
     ) -> dict[str, Any]:
         values = flow.values
         if "department" not in values or "time" not in values:
@@ -336,10 +352,12 @@ class DemoCallService:
             wanted = values.get("doctor", {}).get("en", "")
             # Match a named doctor by any distinctive word ("Ayesha" -> "Dr. Ayesha Khan").
             words = {word for word in re.findall(r"[a-z]{3,}", wanted.casefold()) if word not in {"any", "available", "doctor"}}
-            practitioner = next(
-                (item for item in doctors if words & set(re.findall(r"[a-z]{3,}", item["display_name"].casefold()))),
-                None,
-            )
+            named = wanted and not re.search(r"any|available|no preference", wanted, re.I)
+            matches = [item for item in doctors if words and words <= set(re.findall(r"[a-z]{3,}", item["display_name"].casefold()))]
+            if named and len(matches) != 1:
+                return {"status": "DOCTOR_UNCLEAR", "requested_time": requested,
+                        "message": "The requested doctor could not be matched uniquely. Choose a doctor before booking."}
+            practitioner = matches[0] if named else next((item for item in doctors if item["practitioner_id"] == preferred_practitioner_id), None)
             new_patient = values["first_visit"]["en"] == "Yes"
             visit_type = next(
                 (
@@ -372,10 +390,16 @@ class DemoCallService:
         }
 
     def _extract(self, flow: BookingFlow, caller_text: str) -> dict[str, Any]:
+        # Exact short confirmations need no model call; corrections still do.
+        plain = re.sub(r"[۔.!؟?،,]", "", caller_text).strip().casefold()
+        if flow.step in {"confirm", "summary"} and plain in {"جی", "جی ہاں", "ہاں", "درست ہے", "صحیح ہے", "ٹھیک ہے", "yes", "yes correct", "correct", "ok", "okay", "haan", "ji", "نہیں", "no", "nahi"}:
+            return {"intent": spoken_yes_no(plain), "fields": {}, "fix": [],
+                    "interpretation": {"ur": caller_text, "en": "Yes" if spoken_yes_no(plain) == "yes" else "No"},
+                    "_process_metadata": {"method": "Local confirmation", "fallback": False}}
         messages = flow.extraction_messages(caller_text, today=datetime.now(_CLINIC_TIMEZONE).date())
         for attempt, (url, api_key, model) in enumerate(self._providers()):
             try:
-                raw = self._completion(url, api_key, model, messages, max_tokens=400, raw=True)
+                raw = self._completion(url, api_key, model, messages, max_tokens=700, raw=True)
                 match = re.search(r"\{.*\}", _THINK_BLOCK.sub("", raw), re.S)
                 if match:
                     result = json.loads(match.group(0))

@@ -44,6 +44,11 @@ async function restoreLastVisit() {
   const reference=params.get('patient_ref') || (saved?.user===currentUser.email ? saved.patientId : '');
   const patient=allPatients.find(p=>p._id===reference || p.legacy_ref===reference || p.file_name===reference);
   if (patient) { await openPatientVisit(patient,{noteId:params.get('patient_ref')?'':saved?.noteId || '',restore:true}); }
+  if (params.get('patient_ref') && !patient) {
+    const notice=document.getElementById('handoffAccessNotice');
+    if(notice){notice.hidden=false;notice.textContent='This handoff is unavailable to the signed-in account. Check the assigned doctor on the reception receipt and sign in with that account, or refresh if it was just submitted. Your record may still be saved.';}
+    showToast('Handoff unavailable for this account. Check the assigned doctor on the receipt.','error');
+  }
   renderRecentDrafts();
 }
 async function readVisitContext(patientId,noteId='') {

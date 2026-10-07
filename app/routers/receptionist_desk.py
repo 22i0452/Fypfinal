@@ -5,7 +5,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, File, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, File, Form, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
+from starlette.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -68,6 +69,17 @@ def _service_error(error: Exception):
     return service_http_error(error)
 
 
+def _preferred_doctor(request: Request) -> str:
+    """Use a validated session, never a client-supplied doctor identity."""
+    container = get_container(request)
+    user_id = request.session.get("user_id") or request.session.get("doctor_id")
+    user = container.auth_repository.get_by_id(int(user_id)) if user_id else None
+    if user and user.active and user.actor_role == "doctor" and user.practitioner_id:
+        return user.practitioner_id
+    primary = container.auth_repository.get_by_email(container.settings.primary_doctor_email)
+    return primary.practitioner_id if primary and primary.active and primary.practitioner_id else ""
+
+
 @router.get("/Receptionist")
 @router.get("/receptionist")
 async def receptionist_desk_page():
@@ -92,7 +104,9 @@ async def desk_health(request: Request):
 @router.get("/api/desk/configuration")
 async def desk_configuration(request: Request):
     try:
-        return get_container(request).receptionist_integration_service.configuration()
+        result = get_container(request).receptionist_integration_service.configuration()
+        result["preferred_practitioner_id"] = _preferred_doctor(request)
+        return result
     except ReceptionistIntegrationError as exc:
         raise _service_error(exc) from exc
 
@@ -213,7 +227,7 @@ async def desk_demo_start(payload: DemoStartPayload, request: Request):
 @router.post("/api/desk/demo-calls/turn")
 async def desk_demo_turn(payload: DemoTurnPayload, request: Request):
     try:
-        return get_container(request).demo_call_service.turn(
+        return await run_in_threadpool(get_container(request).demo_call_service.turn,
             scenario_id=payload.scenario_id,
             history=payload.history,
             user_message=payload.user_message,
@@ -226,10 +240,11 @@ async def desk_demo_turn(payload: DemoTurnPayload, request: Request):
 async def desk_demo_finish(payload: DemoFinishPayload, request: Request):
     container = get_container(request)
     try:
-        return container.demo_call_service.finish(
+        return await run_in_threadpool(container.demo_call_service.finish,
             scenario_id=payload.scenario_id,
             history=payload.history,
             integration=container.receptionist_integration_service,
+            preferred_practitioner_id=_preferred_doctor(request),
         )
     except (DemoCallError, ClinicLifecycleError, WorkflowAccessError, WorkflowConflictError,
             WorkflowNotFoundError, WorkflowTransitionError) as exc:
@@ -237,12 +252,28 @@ async def desk_demo_finish(payload: DemoFinishPayload, request: Request):
 
 
 @router.post("/api/desk/demo-calls/stt")
-async def desk_demo_stt(request: Request, audio: UploadFile = File(...)):
-    from app.services.demo_stt import DEMO_STT_PROMPT, looks_garbled_urdu, wav_bytes_from_upload
+async def desk_demo_stt(request: Request, audio: UploadFile = File(...), history: str = Form("[]")):
+    import json
+    from app.services.booking_flow import BookingFlow
+    from app.services.demo_stt import audio_metrics, contextual_stt_prompt, transcript_issue, wav_bytes_from_upload
+    from security_guardrails.telemetry import collect_provider_events
 
     raw = await audio.read()
     if not raw:
         raise _service_error(DemoCallError("EMPTY_AUDIO", "No audio received"))
+    if len(raw) > 10 * 1024 * 1024:
+        raise _service_error(DemoCallError("AUDIO_TOO_LARGE", "Record one short answer at a time"))
+    metrics = audio_metrics(raw)
+    if metrics and metrics.get("peak", 0) <= 0.000001:
+        return {"text": "", "raw_text": "", "needs_review": True, "reason": "no_audio",
+                "audio": metrics, "hint": "No microphone signal was recorded. Check the microphone, retry, or type your answer."}
+    try:
+        turns = json.loads(history) if len(history) <= 64000 else []
+        if not isinstance(turns, list) or any(not isinstance(item, dict) for item in turns):
+            turns = []
+        flow = BookingFlow.from_history(turns)
+    except (ValueError, TypeError, KeyError):
+        flow = BookingFlow()
     wav_bytes = wav_bytes_from_upload(raw)
     gateway = get_gateway()
     actor = Actor(
@@ -259,37 +290,38 @@ async def desk_demo_stt(request: Request, audio: UploadFile = File(...)):
     attempts.append(("openrouter", settings.openrouter_stt_model or "openai/whisper-large-v3"))
     text = ""
     used_provider = ""
-    last_error: Exception | None = None
     for provider, model in attempts:
         try:
-            text = gateway.transcribe_audio(
-                task_type="stt_intake",
-                audio_bytes=wav_bytes or raw,
-                actor=actor,
-                provider=provider,
-                model=model,
-                language="ur",
-                prompt=DEMO_STT_PROMPT,
-                response_format="text",
-            )
+            with collect_provider_events() as events:
+                text = await run_in_threadpool(gateway.transcribe_audio,
+                    task_type="stt_intake",
+                    audio_bytes=wav_bytes or raw,
+                    actor=actor,
+                    provider=provider,
+                    model=model,
+                    language="ur",
+                    prompt=contextual_stt_prompt(flow.current),
+                    response_format="text",
+                )
             if (text or "").strip():
-                used_provider = f"{provider}/{model}"
+                completed = [event for event in events if event["status"] == "complete"]
+                used_provider = f"{completed[-1]['provider']}/{completed[-1]['model']}" if completed else f"{provider}/{model}"
                 break
-        except Exception as exc:  # noqa: BLE001
-            last_error = exc
+        except Exception:  # noqa: BLE001
             text = ""
     clean = (text or "").strip()
     if not clean:
         raise _service_error(
-            DemoCallError("STT_FAILED", str(last_error) if last_error else "Demo STT failed")
+            DemoCallError("STT_FAILED", "Speech provider failed. Your collected details are retained; retry or type your answer.")
         )
-    if looks_garbled_urdu(clean):
+    issue = transcript_issue(clean)
+    if issue:
         return {
-            "text": "",
-            "garbled": True,
-            "hint": "آواز واضح نہیں ملی۔ دوبارہ آہستہ اور صاف بولیں۔ / Speech unclear — please speak again clearly.",
+            "text": clean, "raw_text": clean, "needs_review": True, "reason": issue,
+            "provider": used_provider, "audio": metrics,
+            "hint": "The recognized words need review. Edit the answer below, retry the microphone, or type. Your collected details are retained.",
         }
-    return {"text": clean, "provider": used_provider}
+    return {"text": clean, "raw_text": clean, "needs_review": False, "provider": used_provider, "audio": metrics}
 
 
 @router.post("/api/desk/demo-calls/tts")
@@ -301,7 +333,7 @@ async def desk_demo_tts(payload: DemoTtsPayload, request: Request):
     if not speech:
         raise _service_error(DemoCallError("EMPTY_TTS", "Nothing to speak"))
     try:
-        media_id, backend, ext = get_container(request).inbound_call_service.tts.synthesize(speech)
+        media_id, backend, ext = await run_in_threadpool(get_container(request).inbound_call_service.tts.synthesize, speech)
     except Exception as exc:  # noqa: BLE001
         raise _service_error(DemoCallError("TTS_FAILED", str(exc) or "Demo TTS failed")) from exc
     return {

@@ -44,3 +44,7 @@
 
 .receptionist-body .toast{top:98px;bottom:auto;left:auto;right:28px;transform:none;max-width:min(420px,calc(100vw - 40px));z-index:80}
 @media(max-width:700px){.receptionist-body .toast{right:20px;top:80px}}
+
+/* Reception recovery and explicit doctor handoff. */
+.speech-understanding{border:1px solid var(--border,rgba(223,205,174,.16));border-radius:18px;padding:18px;margin:12px 0;background:rgba(223,205,174,.035);overflow-wrap:anywhere}
+.speech-review-heading,.pending-request-heading{display:flex;align-items:center;gap:10px}.speech-review-heading svg,.pending-request-heading svg{width:18px;height:18px;color:#d5be95}.speech-understanding dl{margin:12px 0}.speech-understanding dt{font-size:11px;text-transform:uppercase;letter-spacing:.1em;opacity:.6;margin-top:10px}.speech-understanding dd{margin:4px 0;line-height:1.7}.speech-understanding p{font-size:13px;opacity:.8}.pending-request-heading{margin:20px 0 12px;flex-wrap:wrap}.pending-request-heading h4{margin:0}.pending-request-heading span{margin-left:auto;font-size:12px;color:#c8b693}.scheduled-queue-heading{margin-top:22px}.handoff-access-notice{padding:18px;margin-bottom:20px;border:1px solid rgba(210,157,139,.35);border-radius:16px;background:rgba(210,157,139,.07);line-height:1.7}.handoff-details small{display:block;overflow-wrap:anywhere}.speech-understanding[hidden],.handoff-access-notice[hidden]{display:none!important}

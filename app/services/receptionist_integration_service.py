@@ -646,14 +646,14 @@ class ReceptionistIntegrationService:
         return matches
 
     def _bookable_practitioners(self) -> list[dict]:
-        # Prefer the primary authorized doctor at the top of booking lists.
+        primary = self.auth.get_by_email(self.auth.primary_doctor_email) if self.auth.primary_doctor_email else None
         return sorted(
             [
                 item for item in self.clinic.list_practitioners()
                 if item.get("doctor_user_id") is not None
             ],
             key=lambda item: (
-                0 if "shahzaib" in str(item.get("display_name") or "").lower() else 1,
+                0 if primary and item["practitioner_id"] == primary.practitioner_id else 1,
                 str(item["display_name"]),
                 str(item["practitioner_id"]),
             ),

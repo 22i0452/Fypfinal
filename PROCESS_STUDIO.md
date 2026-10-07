@@ -44,3 +44,16 @@ Local database and call recordings shown in the Git panel are runtime data. They
 ## Validation and remaining limits
 
 See `VALIDATION.md`. Synthetic browser checks verify the real browser handlers and API/workflow wiring; they do not establish live provider quality, real microphone quality, Urdu transcription accuracy or clinical validity. Incremental consultation STT, acoustic speaker counting, audio alignment and a measured accuracy evaluation remain future capabilities.
+
+
+## Reception speech recovery and doctor routing
+
+The receptionist STT prompt is now a short vocabulary hint, biased to the current field. It contains no example names, phone numbers or dates. Original WAV duration, RMS and peak are measured before normalization; gain is capped at 4x and near-silence is not amplified. Exact silence is reported separately from provider failure. This is signal measurement, not an acoustic speech-confidence score.
+
+The existing single extraction request also receives collected fields and the last four conversation turns, and returns a faithful interpreted Urdu answer plus English translation. Only fields stated in the current caller turn may be collected; context must not invent a name, digit, symptom or date. Exact short confirmations use a local parser, without an LLM request. Uncertain interpretation does not advance the booking state. Raw recognized text is always retained in the response and shown for editing/retry; prompt echoes are held for review. Text entry remains available in voice mode. This does not claim acoustic diarization or measured live ASR accuracy.
+
+Reception configuration defaults to the active signed-in doctor's practitioner ID, then the configured primary account when available. Name-based prioritization has been removed. Manual intake displays the selected doctor; receipts use the server's saved appointment doctor, status, patient ID and appointment ID. Pending REQUESTED appointments are visible immediately in the assigned doctor's pending reception requests, before identity verification. Verification confirms the existing request; check-in and consultation continue with that same appointment. Workspace lists refresh on return. An inaccessible handoff displays an account/access message rather than silently opening an empty list. Existing assignments are not retroactively changed.
+
+Voice booking with 'any doctor' prefers the initiating signed-in doctor in that department. An unmatched or ambiguous named doctor is not silently substituted. If the intake saves but the appointment cannot be made, **Continue appointment with saved intake** opens the form with the original patient, workflow and intake token, allowing a real slot selection without creating another patient. Available alternatives remain selectable. A saved intake is not labelled as forwarded unless an appointment exists.
+
+Pull the latest GitHub main in Replit, restart Run MedFlow and refresh the preview. Keep API keys in Secrets. Live Urdu recognition, physical microphone quality and actual telephone transport still require a provider-backed test on Replit.

@@ -8,7 +8,7 @@ import wave
 
 import numpy as np
 
-from receptionist.urdu_stt_utils import normalize_text, prepare_audio_for_stt, resample_audio
+from receptionist.urdu_stt_utils import normalize_text, resample_audio
 
 
 logger = logging.getLogger(__name__)
@@ -16,14 +16,40 @@ logger = logging.getLogger(__name__)
 SAMPLE_RATE = 16_000
 
 # Same Whisper family as medical Module 2; Urdu Nastaliq + clinic vocabulary.
-DEMO_STT_PROMPT = (
-    "پاکستانی اردو فون کال میڈفلو کلینک رسیپشن سے۔ "
-    "مریض اپنا نام، عمر، فون نمبر، شکایت، ڈاکٹر اور وقت بتاتا ہے۔ "
-    "نام درست اردو رسم الخط میں لکھیں جیسے شہزیب علی خان۔ "
-    "فون نمبر صرف ہندسوں میں لکھیں جیسے 03031234567۔ "
-    "وقت ہندسوں میں لکھیں جیسے 3 بجے۔ "
-    "صرف بولی گئی بات کی درست نقل اردو رسم الخط میں کریں۔ رومن اردو مت لکھیں۔"
-)
+DEMO_STT_PROMPT = "پاکستانی اردو، English، میڈفلو کلینک، جنرل میڈیسن، کارڈیالوجی، پیڈیاٹرکس۔"
+
+
+def contextual_stt_prompt(field: str = "") -> str:
+    # Vocabulary bias only: instructions and sample answers can be hallucinated.
+    hints = {"name": "نام", "age": "عمر", "phone": "فون نمبر",
+             "department": "شعبہ", "doctor": "ڈاکٹر", "time": "دن، وقت"}
+    return DEMO_STT_PROMPT + (" " + hints[field] if field in hints else "")
+
+
+def transcript_issue(text: str) -> str:
+    clean = normalize_text(text)
+    echo = ("اردو رسم خط میں لکھیں", "اردو رسم الخط میں لکھیں",
+            "صرف بولی گئی بات", "رومن اردو مت لکھیں", "transcribe only the exact spoken words")
+    if any(marker in clean.lower() for marker in echo):
+        return "prompt_echo"
+    return "uncertain_transcript" if looks_garbled_urdu(clean) else ""
+
+
+def audio_metrics(audio_bytes: bytes) -> dict:
+    """Measure original PCM, before normalization; never call this a speech score."""
+    try:
+        with wave.open(io.BytesIO(audio_bytes), "rb") as handle:
+            rate, channels, width = handle.getframerate(), handle.getnchannels(), handle.getsampwidth()
+            if width != 2:
+                return {}
+            samples = np.frombuffer(handle.readframes(handle.getnframes()), dtype=np.int16).astype(np.float32) / 32768
+        if not samples.size:
+            return {"duration_ms": 0, "rms": 0.0, "peak": 0.0}
+        return {"duration_ms": round(samples.size / channels / rate * 1000),
+                "rms": float(np.sqrt(np.mean(samples * samples))),
+                "peak": float(np.max(np.abs(samples)))}
+    except (wave.Error, EOFError, ValueError):
+        return {}
 
 
 def sniff_audio_format(audio_bytes: bytes) -> str:
@@ -72,7 +98,12 @@ def _normalize_wav(audio_bytes: bytes) -> bytes:
         samples = samples.reshape(-1, channels).mean(axis=1)
     if frame_rate != SAMPLE_RATE:
         samples = resample_audio(samples, frame_rate, SAMPLE_RATE)
-    samples = prepare_audio_for_stt(samples)
+    # Preserve quiet input. Peak normalization previously amplified tiny noise
+    # to full scale. Bound gain to 4x and never amplify near-silence.
+    samples = samples - float(np.mean(samples)) if samples.size else samples
+    peak = float(np.max(np.abs(samples))) if samples.size else 0.0
+    if peak > 0.002:
+        samples = samples * min(4.0, 0.95 / peak)
     return _float_to_wav_bytes(samples, SAMPLE_RATE)
 
 

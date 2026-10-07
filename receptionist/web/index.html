@@ -6,8 +6,8 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Medflow AI | Receptionist</title>
 <link href="/branding/icon" rel="icon" type="image/png"/>
-<link href="/assets/ui.css?v=20261007-process" rel="stylesheet"/>
-<link href="/receptionist-static/receptionist.css?v=20261007-process" rel="stylesheet"/>
+<link href="/assets/ui.css?v=20261007-recovery" rel="stylesheet"/>
+<link href="/receptionist-static/receptionist.css?v=20261007-recovery" rel="stylesheet"/>
 </head>
 <body class="receptionist-body">
 <div class="app-shell receptionist-shell">
@@ -158,8 +158,9 @@
 <div class="live-empty">Choose a scenario on the left, then start a live interactive demo.</div>
 </div>
 <div class="booking-result demo-result" hidden="" id="demoResult"></div>
+<section class="speech-understanding" id="speechUnderstanding" hidden aria-live="polite"></section>
 <form class="demo-composer" hidden="" id="demoComposer" onsubmit="sendDemoMessage(event)">
-<input autocomplete="off" id="demoInput" placeholder="Type your reply as the caller…" type="text"/>
+<input autocomplete="off" id="demoInput" placeholder="Type or correct your recognized answer…" type="text"/>
 <button class="note-action" id="demoMicBtn" onclick="toggleDemoMic()" type="button">Mic</button>
 <button class="toolbar-btn primary" id="demoSendBtn" type="submit">Send</button>
 </form>
@@ -195,6 +196,6 @@
 </main>
 </div>
 <div class="toast" id="toast"></div>
-<script src="/assets/voice-meter.js?v=20261007-process"></script><script src="/receptionist-static/app.js?v=20261007-process"></script>
-<script src="/assets/vendor/lucide.min.js"></script><script src="/receptionist-static/studio.js"></script><script src="/receptionist-static/process.js?v=20261007-process"></script><script src="/assets/icons.js?v=20261007-process"></script></body>
+<script src="/assets/voice-meter.js?v=20261007-recovery"></script><script src="/receptionist-static/app.js?v=20261007-recovery"></script>
+<script src="/assets/vendor/lucide.min.js"></script><script src="/receptionist-static/studio.js?v=20261007-recovery"></script><script src="/receptionist-static/process.js?v=20261007-recovery"></script><script src="/assets/icons.js?v=20261007-recovery"></script></body>
 </html>

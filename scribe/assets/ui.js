@@ -471,16 +471,21 @@ function renderDoctorAppointmentList() {
   const container = document.getElementById("doctorAppointmentList");
   const badge = document.getElementById("appointmentCountBadge");
   if (!container || !badge) return;
-  const count = doctorAppointments.length;
+  const pending = doctorAppointments.filter(x => x.status === "REQUESTED");
+  const scheduled = doctorAppointments.filter(x => x.status !== "REQUESTED");
+  const pendingList = document.getElementById("pendingRequestList");
+  document.getElementById("pendingRequestCount").textContent = `${pending.length} pending`;
+  const count = scheduled.length;
   badge.textContent = `${count} booked`;
-  if (!count) {
+  if (!doctorAppointments.length) {
+    if(pendingList) pendingList.innerHTML = '<div class="appointment-empty">No pending requests for this doctor.</div>';
     container.innerHTML = `
       <div class="appointment-empty">
         No confirmed appointments are assigned to your schedule yet.
       </div>`;
     return;
   }
-  container.innerHTML = doctorAppointments.map((appointment) => {
+  const renderRow = (appointment) => {
     const date = new Date(appointment.start_at);
     const dateLabel = appointmentDateLabel(date);
     const timeLabel = Number.isNaN(date.getTime())
@@ -510,7 +515,10 @@ function renderDoctorAppointmentList() {
         </span>
         <span class="appointment-status">${escHtml(statusLabel)}</span>
       </button>`;
-  }).join("");
+  };
+  if(pendingList) pendingList.innerHTML = pending.map(renderRow).join("") || '<div class="appointment-empty">No pending requests for this doctor.</div>';
+  container.innerHTML = scheduled.map(renderRow).join("") || '<div class="appointment-empty">No confirmed appointments are assigned to your schedule yet.</div>';
+  if(window.lucide)lucide.createIcons();
 }
 
 function appointmentDateLabel(date) {
@@ -2731,3 +2739,13 @@ function showToast(message, type = "info") {
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 3600);
 }
+
+let dashboardReturnRefresh = false;
+async function refreshReturnedDashboard(){
+  if(dashboardReturnRefresh || !currentUser || typeof visitLocked==='function' && visitLocked())return;
+  dashboardReturnRefresh=true;
+  try{await refreshDashboardQueues();}finally{dashboardReturnRefresh=false;}
+}
+window.addEventListener('focus',refreshReturnedDashboard);
+window.addEventListener('pageshow',event=>{if(event.persisted)refreshReturnedDashboard();});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshReturnedDashboard();});

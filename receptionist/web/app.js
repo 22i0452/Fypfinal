@@ -5,6 +5,8 @@ const state = {
   patientId: "",
   workflowId: "",
   appointmentId: "",
+  bookingReceipt: null,
+  lastSpeech: null,
   busy: false,
   view: "intake",
   clinicNumber: "",
@@ -389,14 +391,13 @@ function setDemoComposerEnabled(enabled) {
   const input = document.getElementById("demoInput");
   const sendBtn = document.getElementById("demoSendBtn");
   const micBtn = document.getElementById("demoMicBtn");
-  const voiceMode = state.demoMode === "voice";
   if (input) {
-    input.disabled = !enabled || state.demoBusy || voiceMode;
-    input.hidden = voiceMode;
+    input.disabled = !enabled || state.demoBusy;
+    input.hidden = false;
   }
   if (sendBtn) {
-    sendBtn.disabled = !enabled || state.demoBusy || voiceMode;
-    sendBtn.hidden = voiceMode;
+    sendBtn.disabled = !enabled || state.demoBusy;
+    sendBtn.hidden = false;
   }
   if (micBtn) micBtn.disabled = !enabled || state.demoBusy;
 }
@@ -516,7 +517,7 @@ function stopDemoMicCapture({ finalize = false } = {}) {
   if (!chunks.length) return null;
   const merged = mergeFloat32Chunks(chunks);
   const pcm16k = resampleFloat32(merged, sampleRate, 16000);
-  if (pcm16k.length < 16000 * 0.35) return null;
+  if (pcm16k.length < 16000 * 0.18) return null;
   return encodeWavMono16(pcm16k, 16000);
 }
 
@@ -661,9 +662,8 @@ function renderDemoResult(result) {
   let note;
   if (result.saved) {
     heading = "Patient saved";
-    note = `Patient <strong>${escapeHtml(result.patient_id)}</strong> was created and forwarded for doctor review${
-      result.confirmed ? "" : " (the caller did not confirm the final summary)"
-    }.`;
+    const forwarded = Boolean(result.booking?.appointment?.appointment_id);
+    note = `Patient <strong>${escapeHtml(result.patient_id)}</strong> is saved. ${forwarded ? "The appointment request is visible to the assigned doctor." : "An appointment still needs to be selected. Continue with this saved intake below."}`;
   } else if (result.error) {
     heading = "Patient not saved";
     note = escapeHtml(result.error);
@@ -759,6 +759,8 @@ async function beginDemoSession({ voice }) {
       body: JSON.stringify({ scenario_id: scenario.id }),
     });
     state.demoHistory = started.history || [];
+    state.lastSpeech = null;
+    renderSpeechUnderstanding(null);
     window.receptionArtifact?.(started.process);
     appendDemoLine("agent", started.reply || "");
     if (voice) {
@@ -798,6 +800,7 @@ async function sendDemoMessage(event) {
   if (!text) return;
 
   input.value = "";
+  state.lastSpeech = null;
   appendDemoLine("patient", text);
   state.demoBusy = true;
   setDemoComposerEnabled(false);
@@ -813,6 +816,8 @@ async function sendDemoMessage(event) {
       }),
     });
     state.demoHistory = result.history || state.demoHistory;
+    renderSpeechUnderstanding(result.understanding);
+    if (result.understanding?.needs_review) input.value = text;
     window.receptionArtifact?.(result.process);
     appendDemoLine("agent", result.reply || "");
     if (state.demoMode === "voice") {
@@ -861,14 +866,19 @@ async function toggleDemoMic() {
     try {
       const form = new FormData();
       form.append("audio", wavBlob, "demo-caller.wav");
+      form.append("history", JSON.stringify(state.demoHistory));
       const response = await fetch("/api/desk/demo-calls/stt", { method: "POST", body: form });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(apiMessage(payload, "STT failed"));
       }
       window.receptionSttResult?.(payload, performance.now()-sttStarted);
-      if (payload.garbled) {
-        showToast(payload.hint || "Speech unclear — please speak again clearly.", "error");
+      state.lastSpeech = payload;
+      renderSpeechUnderstanding({raw: payload.raw_text || payload.text || "", needs_review: payload.needs_review, reason: payload.reason});
+      if (payload.needs_review || payload.garbled) {
+        document.getElementById("demoInput").value = payload.raw_text || payload.text || "";
+        showToast(payload.hint || "Review the recognized words, retry, or type.", "error");
+        window.receptionPhase?.("review", "Review the recognized answer; collected details are retained");
         setDemoComposerEnabled(true);
         return;
       }
@@ -888,7 +898,7 @@ async function toggleDemoMic() {
     } finally {
       state.demoBusy = false;
       setDemoComposerEnabled(true);
-      if(!window.receptionIsError?.()) window.receptionPhase?.("ready", "Tap the microphone to reply");
+      if(!window.receptionIsError?.() && !state.lastSpeech?.needs_review) window.receptionPhase?.("ready", "Tap the microphone to reply");
     }
     return;
   }
@@ -960,7 +970,14 @@ async function loadConfiguration() {
     (item) => item.name,
     "Select visit type"
   );
+  const preferred = (state.config.practitioners || []).find(x => x.practitioner_id === state.config.preferred_practitioner_id);
+  if (preferred) document.getElementById("fieldDepartment").value = preferred.department_id;
   onDepartmentChange();
+  if (preferred) {
+    document.getElementById("fieldDoctor").value = preferred.practitioner_id;
+    document.getElementById("fieldVisitType").value = "VISIT-NEW";
+    await loadSlots();
+  }
   const clinicName = state.config.clinic?.name || "Medflow Clinic";
   document.getElementById("backendStatus").textContent = "Connected";
   if (!document.getElementById("backendHint").dataset.locked) {
@@ -983,6 +1000,7 @@ async function loadSlots() {
     const data = await api(
       `/api/desk/availability?practitioner_id=${encodeURIComponent(practitionerId)}&visit_type_id=${encodeURIComponent(visitTypeId)}&days=14&limit=12`
     );
+    if(document.getElementById("fieldDoctor").value!==practitionerId || document.getElementById("fieldVisitType").value!==visitTypeId)return;
     fillSelect(
       slotSelect,
       data.slots || [],
@@ -1064,6 +1082,7 @@ async function submitIntake(event) {
     const appointmentId = booking.appointment?.appointment_id || booking.appointment_id;
     if (!appointmentId) throw new Error("Intake saved, but no appointment was created. Choose a slot and retry.");
     state.appointmentId = appointmentId;
+    state.bookingReceipt = booking;
     const result = document.getElementById("bookingResult");
     result.hidden = false;
     result.innerHTML = `
@@ -1189,6 +1208,7 @@ function resetSession() {
   state.patientId = "";
   state.workflowId = "";
   state.appointmentId = "";
+  state.bookingReceipt = null;
   document.getElementById("intakeForm").reset();
   document.getElementById("bookingResult").hidden = true;
   document.getElementById("chatThread").innerHTML =
@@ -1251,3 +1271,35 @@ async function boot() {
 }
 
 boot();
+
+function renderSpeechUnderstanding(answer) {
+  const box = document.getElementById("speechUnderstanding");
+  if (!box) return;
+  box.hidden = !answer;
+  if (!answer) { box.innerHTML = ""; return; }
+  box.innerHTML = `<div class="speech-review-heading"><i data-lucide="scan-text"></i><strong>${answer.needs_review ? "Review your answer" : "Your answer, understood"}</strong></div>
+    <dl><dt>Recognized words</dt><dd dir="auto">${escapeHtml(answer.raw || "No microphone signal")}</dd>
+    ${answer.ur ? `<dt>Interpreted Urdu</dt><dd dir="auto">${escapeHtml(answer.ur)}</dd>` : ""}
+    ${answer.en ? `<dt>English</dt><dd>${escapeHtml(answer.en)}</dd>` : ""}</dl>
+    ${answer.needs_review ? '<p>Edit the reply below and press Send, or tap Mic to retry. Previously collected details are retained.</p>' : ''}`;
+  if (window.lucide) lucide.createIcons();
+}
+
+function resumeDemoIntake(){
+  const saved=state.demoSaved;
+  if(!saved?.saved || state.busy || state.demoBusy || state.demoSaving)return;
+  state.intakeToken=saved.intake_token;state.revision=saved.revision || 1;
+  state.patientId=saved.patient_id;state.workflowId=saved.workflow_id;
+  state.appointmentId="";state.bookingReceipt=null;
+  const ids={name:'fieldName',age:'fieldAge',phone:'fieldPhone',first_visit:'fieldFirstVisit',history:'fieldHistory',complaint:'fieldComplaint'};
+  for(const row of saved.details || [])if(ids[row.key])document.getElementById(ids[row.key]).value=row.key==='first_visit'?row.en.toLowerCase():row.en;
+  const department=(state.config?.departments || []).find(item=>item.name===(saved.details || []).find(row=>row.key==='department')?.en);
+  if(department)document.getElementById('fieldDepartment').value=department.department_id;
+  onDepartmentChange();
+  const preferred=practitionersForDepartment(document.getElementById('fieldDepartment').value).find(item=>item.practitioner_id===state.config?.preferred_practitioner_id);
+  if(preferred)document.getElementById('fieldDoctor').value=preferred.practitioner_id;
+  document.getElementById('fieldVisitType').value=(saved.details || []).find(row=>row.key==='first_visit')?.en==='Yes'?'VISIT-NEW':'VISIT-FOLLOWUP';
+  if(!document.getElementById('fieldVisitType').value)document.getElementById('fieldVisitType').selectedIndex=1;
+  document.getElementById('bookingResult').hidden=true;
+  showView('intake');setIntakeStage(1);loadSlots();
+}
