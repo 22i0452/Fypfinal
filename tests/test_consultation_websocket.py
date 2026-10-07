@@ -93,7 +93,7 @@ class ConsultationWebSocketTests(unittest.TestCase):
                 )
                 self.assertEqual(login.status_code, 200)
                 start_payload = {
-                    "type": "start",
+                    "type": "start", "auto_soap": True,
                     "patient_id": patient.patient_id,
                     "workflow_id": context.workflow.workflow_id,
                     "encounter_id": context.encounter.encounter_id,

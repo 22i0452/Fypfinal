@@ -160,7 +160,7 @@ ReceptionistAPIClient → FastAPI /api/receptionist/*
 
 ## Module 2 — AI Scribe Agent
 
-The doctor-facing clinical documentation module. After check-in and consent, it captures the consultation, labels speakers, translates while preserving clinical identity, and produces a **draft-only** SOAP note that must be reviewed and approved by the authenticated doctor.
+The doctor-facing clinical documentation module. After check-in and consent, it captures the consultation, labels speakers and translates while preserving clinical identity. The guided default saves a transcript-review checkpoint before generating a **draft-only** SOAP note. The authenticated doctor reviews the conversation, saves corrections, explicitly generates SOAP, then reviews and approves the draft. An optional Automatic SOAP switch retains the faster path.
 
 ### What it does
 
@@ -168,6 +168,8 @@ The doctor-facing clinical documentation module. After check-in and consent, it 
 - Speech-to-text for the encounter
 - LLM-assisted **Doctor / Patient / Unknown** diarization with stable utterance IDs
 - Identity-preserving clinical English translation
+- Saved conversation review, versioned wording/role corrections and explicit SOAP generation
+- Optional Automatic SOAP mode; refresh/retry recovery on the same encounter
 - Template-aware, evidence-grounded **SOAP AI draft** (Subjective, Objective, Assessment, Plan)
 - Doctor edit → submit → approve / reject with immutable note versions
 - Pre-visit brief and after-visit summary (English / Urdu / bilingual)
@@ -183,6 +185,8 @@ Doctor workspace (browser)
   → STT
   → llm_diarizer (speaker labels)
   → translator (clinical English)
+  → Saved conversation review + corrections (default; optional automatic bypass)
+  → Explicit Generate SOAP
   → soap_generator (SOAP AI_DRAFT)
   → Doctor review / approval
   → After-visit summary / Patient Assistant / FHIR (approved-only)
@@ -224,6 +228,8 @@ Urdu intake (Module 1 / receptionist/)
   → Four independent consent decisions
   → Consultation recording (Module 2 / scribe/)
   → Diarization + translation
+  → Saved transcript review + corrections
+  → Explicit Generate SOAP (or optional automatic mode)
   → SOAP AI_DRAFT
   → Doctor edit / approve
   → After-visit summary / assistant / optional FHIR
@@ -377,8 +383,9 @@ Module 2 runs **inside the same web app** — there is no separate scribe server
 4. Complete doctor-side verification (development OTP when enabled).
 5. Confirm the appointment and check in.
 6. Grant consents (recording, transcription, documentation; retention optional).
-7. Select a clinical template, record the consultation, then review the diarized transcript and SOAP draft.
-8. Edit, submit, and approve the note; generate after-visit summaries or ask the Patient Assistant as needed.
+7. Select a clinical template and choose guided mode (Automatic SOAP off) or automatic mode before recording.
+8. Finish recording. In guided mode, review the saved original/English conversation, edit turns or roles, save corrections, then select **Generate SOAP**.
+9. Review, edit, submit and approve the note. Use **View conversation** or a statement source to open the source panel. Generate the approved summary and complete the visit.
 
 A fuller walkthrough lives in [`docs/demo/clinic-agent-demo-script.md`](docs/demo/clinic-agent-demo-script.md).
 

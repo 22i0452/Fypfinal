@@ -30,6 +30,7 @@ def service_http_error(error: Exception, *, default_status: int = status.HTTP_40
         "RESEND_COOLDOWN",
         "RESEND_LIMIT",
         "OTP_ALREADY_USED",
+        "ACTION_IN_PROGRESS",
     }:
         status_code = status.HTTP_409_CONFLICT
     elif code in {
@@ -42,6 +43,8 @@ def service_http_error(error: Exception, *, default_status: int = status.HTTP_40
         "LLM_NOT_CONFIGURED",
         "LLM_ERROR",
         "STT_FAILED",
+        "SOAP_FAILED",
+        "TRANSLATION_FAILED",
     }:
         status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return HTTPException(status_code=status_code, detail={"code": code, "message": str(error)})

@@ -1396,6 +1396,7 @@ async function startRecording() {
     workflow_id: activeWorkflow.workflow_id,
     encounter_id: activeEncounter.encounter_id,
     sample_rate: captureSampleRate,
+    auto_soap: Boolean(window.medflowAutomaticSoap),
     template_id: selectedTemplateId,
   }));
   pendingRecordingStart = true;

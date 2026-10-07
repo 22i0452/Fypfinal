@@ -32,7 +32,7 @@ const deadline=setTimeout(()=>{console.error('Browser validation timed out');pro
  assert.equal(await p.evaluate(()=>!pendingRecordingStart && !isRecording && !document.getElementById('visitNextBtn').disabled),true);
  console.log('MIC PERMISSION RECOVERY',true);
  // Real websocket pipeline with synthetic audio and the local mock AI provider.
- await p.evaluate(()=>{captureContext={patientId:selectedPatient._id,workflowId:activeWorkflow.workflow_id,encounterId:activeEncounter.encounter_id,captureId:crypto.randomUUID()};pendingRecordingStart=true;ws.send(JSON.stringify({type:'start',patient_id:captureContext.patientId,workflow_id:captureContext.workflowId,encounter_id:captureContext.encounterId,capture_id:captureContext.captureId,sample_rate:16000,template_id:'TPL-GP-01'}));});
+ await p.evaluate(()=>{captureContext={patientId:selectedPatient._id,workflowId:activeWorkflow.workflow_id,encounterId:activeEncounter.encounter_id,captureId:crypto.randomUUID()};pendingRecordingStart=true;ws.send(JSON.stringify({type:'start',auto_soap:true,patient_id:captureContext.patientId,workflow_id:captureContext.workflowId,encounter_id:captureContext.encounterId,capture_id:captureContext.captureId,sample_rate:16000,template_id:'TPL-GP-01'}));});
  await p.waitForFunction(()=>isRecording);
  await p.evaluate(()=>{const a=new Int16Array(32000);for(let i=0;i<a.length;i++)a[i]=Math.round(5000*Math.sin(i/20));ws.send(a.buffer);stopRecording();});await p.waitForFunction(()=>isProcessing);await p.reload();await p.waitForFunction(()=>!visitLoading && isProcessing);console.log('RELOAD DURING PROCESSING',true);await p.waitForFunction(()=>!!soapLastSavedNoteId,{timeout:20000});
  await p.waitForTimeout(300);await p.screenshot({path:shots+'/review.png',fullPage:true});
@@ -63,7 +63,7 @@ const deadline=setTimeout(()=>{console.error('Browser validation timed out');pro
  await p.locator('#transcriptBody [data-evidence-key]').first().click();
  assert.ok((await p.locator('#evidenceDialog').innerText()).includes('Proposed role'));
  await p.locator('#evidenceDialog [data-evidence-close]').click();
- await p.evaluate(()=>{processInspectOpen=true;processPick('validation');});
+ await p.evaluate(()=>{toggleGuidedProcess();processPick('validation');});
  await p.locator('.process-artifact [data-evidence-key]').first().click();
  assert.ok((await p.locator('#evidenceDialog').innerText()).includes('Initial capture artifact'));
  await p.locator('#evidenceDialog [data-evidence-close]').click();
@@ -119,13 +119,13 @@ const deadline=setTimeout(()=>{console.error('Browser validation timed out');pro
  assert.equal(await p.evaluate(()=>activeWorkflow.workflow_id),handoff.workflow);assert.equal(await p.evaluate(()=>activeAppointment.appointment_id),handoff.appointment);console.log('HANDOFF CONFIRMS SAME BOOKING',true);
  await p.locator('#visitNextBtn').click();await p.locator('#consentDialog').waitFor({state:'visible'});for(const id of ['consentRecording','consentTranscription','consentDocumentation'])await p.locator('#'+id).check();await p.getByRole('button',{name:'Save choices',exact:true}).click();await p.waitForFunction(()=>hasRequiredConsent() && !visitActionBusy);
  await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>visitStage==='capture');
- await p.evaluate(()=>{captureContext={patientId:selectedPatient._id,workflowId:activeWorkflow.workflow_id,encounterId:activeEncounter.encounter_id,captureId:crypto.randomUUID()};pendingRecordingStart=true;ws.send(JSON.stringify({type:'start',patient_id:captureContext.patientId,workflow_id:captureContext.workflowId,encounter_id:captureContext.encounterId,capture_id:captureContext.captureId,sample_rate:16000,template_id:'TPL-GP-01'}));});await p.waitForFunction(()=>isRecording);
+ await p.evaluate(()=>{captureContext={patientId:selectedPatient._id,workflowId:activeWorkflow.workflow_id,encounterId:activeEncounter.encounter_id,captureId:crypto.randomUUID()};pendingRecordingStart=true;ws.send(JSON.stringify({type:'start',auto_soap:true,patient_id:captureContext.patientId,workflow_id:captureContext.workflowId,encounter_id:captureContext.encounterId,capture_id:captureContext.captureId,sample_rate:16000,template_id:'TPL-GP-01'}));});await p.waitForFunction(()=>isRecording);
  await p.evaluate(()=>{window.trackWasStopped=false;mediaStream={getTracks:()=>[{stop:()=>window.trackWasStopped=true}]};ws.close();});await p.waitForFunction(()=>!isRecording && !pendingRecordingStart && ws.readyState===WebSocket.OPEN,{timeout:20000});assert.equal(await p.evaluate(()=>window.trackWasStopped),true);console.log('DISCONNECT STOPS CAPTURE & RECONNECTS',true);
  for(const width of [1440,1280,390]){await p.setViewportSize({width,height:900});assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth),width);}
  await p.setViewportSize({width:1440,height:900});
 
  await p.evaluate(()=>fetch('/audit/fail-next-documentation',{method:'POST'}));
- await p.evaluate(()=>{captureContext={patientId:selectedPatient._id,workflowId:activeWorkflow.workflow_id,encounterId:activeEncounter.encounter_id,captureId:crypto.randomUUID()};pendingRecordingStart=true;ws.send(JSON.stringify({type:'start',patient_id:captureContext.patientId,workflow_id:captureContext.workflowId,encounter_id:captureContext.encounterId,capture_id:captureContext.captureId,sample_rate:16000}));});await p.waitForFunction(()=>isRecording);
+ await p.evaluate(()=>{captureContext={patientId:selectedPatient._id,workflowId:activeWorkflow.workflow_id,encounterId:activeEncounter.encounter_id,captureId:crypto.randomUUID()};pendingRecordingStart=true;ws.send(JSON.stringify({type:'start',auto_soap:true,patient_id:captureContext.patientId,workflow_id:captureContext.workflowId,encounter_id:captureContext.encounterId,capture_id:captureContext.captureId,sample_rate:16000}));});await p.waitForFunction(()=>isRecording);
  const oldEncounter=await p.evaluate(()=>activeEncounter.encounter_id);
  await p.evaluate(()=>{ws.send(new Int16Array(16000).buffer);stopRecording();});await p.waitForFunction(()=>activeWorkflow?.state==='FAILED' && !isProcessing);
  await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>activeWorkflow.state==='CONSULTATION_ACTIVE' && visitStage==='capture' && !visitActionBusy);assert.equal(await p.evaluate(()=>activeEncounter.encounter_id),oldEncounter);console.log('FAILURE RECOVERY SAME ENCOUNTER',true);

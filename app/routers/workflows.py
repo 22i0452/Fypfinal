@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+import asyncio
+from app.services.consultation_review import ConsultationReviewError
 
 from app.dependencies import actor_for_user, get_container, get_current_user
 from app.repositories import AuthUser
@@ -60,6 +62,7 @@ def _context_payload(container, workflow, actor) -> dict:
         "encounter": encounter.model_dump(mode="json") if encounter else None,
         "consents": [item.model_dump(mode="json") for item in decisions.values() if item],
         "note": note,
+        "conversation_review": container.consultation_review.payload(workflow.workflow_id, actor) if workflow else None,
         "process_trace": container.process_trace.latest(encounter.encounter_id, workflow.patient_id) if encounter else None,
         "coding_enabled": container.settings.icd_coding_enabled,
         "development_quick_start_enabled": container.settings.development_quick_start_available,
@@ -123,7 +126,7 @@ async def prepare_consultation(
     actor = actor_for_user(container, user, payload.patient_id)
     existing = next((item for item in container.workflow_repository.list(patient_id=payload.patient_id)
                      if item.state not in {WorkflowState.ENCOUNTER_COMPLETED, WorkflowState.CANCELLED}), None)
-    if existing and existing.state in {WorkflowState.DOCUMENTATION_PROCESSING, WorkflowState.NOTE_REVIEW_REQUIRED, WorkflowState.NOTE_APPROVED, WorkflowState.FAILED}:
+    if existing and existing.state in {WorkflowState.TRANSCRIPT_REVIEW, WorkflowState.DOCUMENTATION_PROCESSING, WorkflowState.NOTE_REVIEW_REQUIRED, WorkflowState.NOTE_APPROVED, WorkflowState.FAILED}:
         existing = container.workflow_orchestrator.get_session(existing.workflow_id, actor=actor)
         return {**_context_payload(container, existing, actor), "cancelled_workflow_count": 0}
     try:
@@ -182,6 +185,66 @@ async def complete_visit(workflow_id: str, request: Request, user: AuthUser = De
         raise service_http_error(exc) from exc
 
 
+class TranscriptRevisionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_revision: int = Field(ge=1)
+    transcript_id: str = Field(min_length=1, max_length=80)
+
+
+class ConversationCorrection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    utterance_id: str = Field(min_length=1, max_length=80)
+    speaker: str | None = None
+    speaker_relation: str | None = Field(default=None, max_length=40)
+    original_text: str | None = Field(default=None, min_length=1, max_length=4000)
+    clinical_english: str | None = Field(default=None, min_length=1, max_length=4000)
+
+    @model_validator(mode="after")
+    def valid_correction(self):
+        if self.speaker is not None and self.speaker not in {"DOCTOR","PATIENT","NURSE","ATTENDANT","UNKNOWN"}:
+            raise ValueError("Unknown speaker role")
+        for value in (self.original_text,self.clinical_english):
+            if value is not None and not value.strip():
+                raise ValueError("Turn text cannot be blank")
+        if self.speaker is None and self.original_text is None and self.clinical_english is None:
+            raise ValueError("Supply a role or wording correction")
+        return self
+
+
+class ConversationEditRequest(TranscriptRevisionRequest):
+    corrections: list[ConversationCorrection] = Field(min_length=1, max_length=100)
+
+
+async def _conversation_action(request, user, workflow_id, payload, action):
+    container = get_container(request)
+    actor = actor_for_user(container,user)
+    try:
+        method = getattr(container.consultation_review,action)
+        args = [workflow_id,actor,payload.expected_revision,payload.transcript_id]
+        if action=='revise':
+            args.append([item.model_dump(exclude_none=True) for item in payload.corrections])
+        await asyncio.to_thread(method,*args)
+        workflow=container.workflow_orchestrator.get_session(workflow_id,actor=actor)
+        return _context_payload(container,workflow,actor)
+    except (ConsultationReviewError,PermissionError,WorkflowAccessError,WorkflowConflictError,WorkflowNotFoundError,WorkflowTransitionError) as exc:
+        raise service_http_error(exc) from exc
+
+
+@router.patch("/{workflow_id}/conversation")
+async def revise_conversation(workflow_id: str,payload: ConversationEditRequest,request: Request,user: AuthUser=Depends(get_current_user)):
+    return await _conversation_action(request,user,workflow_id,payload,'revise')
+
+
+@router.post("/{workflow_id}/generate-soap")
+async def generate_reviewed_soap(workflow_id: str,payload: TranscriptRevisionRequest,request: Request,user: AuthUser=Depends(get_current_user)):
+    return await _conversation_action(request,user,workflow_id,payload,'generate')
+
+
+@router.post("/{workflow_id}/retry-translation")
+async def retry_conversation_translation(workflow_id: str,payload: TranscriptRevisionRequest,request: Request,user: AuthUser=Depends(get_current_user)):
+    return await _conversation_action(request,user,workflow_id,payload,'retry_translation')
+
+
 @router.post("/{workflow_id}/retry-documentation")
 async def retry_documentation(workflow_id: str, request: Request, user: AuthUser = Depends(get_current_user)):
     """Explicitly allow new audio after a failed pipeline, preserving the encounter."""
@@ -197,6 +260,8 @@ async def retry_documentation(workflow_id: str, request: Request, user: AuthUser
         workflow = container.workflow_orchestrator.perform_action(
             workflow_id, WorkflowAction.RETRY_DOCUMENTATION, actor=actor, expected_version=workflow.version,
         )
+        if container.consultation_review.store.get(workflow_id):
+            container.consultation_review.store.change(workflow_id,lambda row:{**row,'status':'SUPERSEDED','operation_token':None})
         return _context_payload(container, workflow, actor)
     except (WorkflowAccessError, WorkflowConflictError, WorkflowNotFoundError, WorkflowTransitionError) as exc:
         raise service_http_error(exc) from exc

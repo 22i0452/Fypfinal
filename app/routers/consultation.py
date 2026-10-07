@@ -130,6 +130,7 @@ async def consultation_websocket(websocket: WebSocket):
                 "audio_retention_consent": authorization.retain_audio,
                 "audio_retention_requested": authorization.retain_audio,
                 "template_id": template.template_id,
+                "auto_soap": message.get("auto_soap") is True,
             }
         )
         await send(
@@ -215,6 +216,8 @@ async def consultation_websocket(websocket: WebSocket):
                 }
             )
 
+            original_transcript = container.documentation_service.save_transcript(transcript_id=transcript_id,patient_id=patient_id,encounter_id=encounter_id,utterances=diarized)
+            container.consultation_review.prepare(workflow_id, original_transcript, run_id, session["template_id"], session["auto_soap"])
             await trace("translation", "running")
             await send({"type": "processing", "message": "Translating transcript to English..."})
             translated = await call_provider(
@@ -234,44 +237,31 @@ async def consultation_websocket(websocket: WebSocket):
             ]
             await trace("translation", "complete", {"utterances":english_payload, "paired_ids":[item.utterance_id for item in translated]})
             await send({"type": "translation_complete", "english_conversation": english_payload})
-            await trace("draft", "running")
-
-            await send({"type": "processing", "message": "Generating an evidence-linked SOAP draft..."})
-            draft = await call_provider(
-                container.documentation_service.generate_draft,
-                workflow_id=workflow_id,
-                patient=patient,
-                encounter_id=encounter_id,
-                transcript=transcript,
-                actor=actor,
-                template_id=str(session.get("template_id") or "TPL-GP-01"),
-            )
-            await trace("draft", "complete", {"note_id":draft.note.note_id, "generation_mode":draft.legacy_soap.get("generation_mode", "MODEL_VALIDATED"), "soap":container.documentation_service.legacy_soap(draft.version.soap)})
-            await trace("validation", "running")
-            valid_ids = {item.utterance_id for item in translated}
-            claims = [claim for key in ("subjective", "objective", "assessment", "plan") for claim in getattr(draft.version.soap, key)]
-            if any(ref not in valid_ids for claim in claims for ref in claim.evidence_ids):
-                raise DocumentationError("UNKNOWN_EVIDENCE", "Unknown evidence reference")
-            from app.services.evidence_checks import note_evidence_report
-            evidence_report = note_evidence_report(draft.version.soap, transcript, state=draft.version.status, version=draft.version.version_number, note_id=draft.note.note_id)
-            draft.legacy_soap["evidence_report"] = evidence_report
-            await trace("validation", "complete", {"evidence_report":evidence_report, "known_references":True, "claim_count":len(claims), "linked_claims":sum(bool(item.evidence_ids) for item in claims), "warnings":draft.version.soap.warnings, "missing_information":draft.version.soap.missing_information, "clinician_approval":"Required", "version":draft.version.version_number})
-            audio_metadata = cleanup_audio_session(
-                session,
-                patient_ref=patient_id,
-                note_ref=draft.note.note_id,
-            )
-            await send(
-                {
-                    "type": "soap_note",
-                    "note_id": draft.note.note_id,
-                    "note_state": draft.note.state.value,
-                    "soap": {**draft.legacy_soap, "audio_retention": audio_metadata},
-                    "urdu_transcript": urdu_payload,
-                    "english_transcript": english_payload,
-                }
-            )
+            container.consultation_review.ready(workflow_id, actor)
+            if not session["auto_soap"]:
+                audio_metadata = cleanup_audio_session(session,patient_ref=patient_id,note_ref=transcript_id)
+                container.consultation_review.store.change(workflow_id,lambda row:{**row,"audio_retention":audio_metadata})
+                await send({"type":"conversation_ready","conversation_review":container.consultation_review.payload(workflow_id,actor)})
+                return
+            # The optional automatic path uses the same revision lock and saved transcript.
+            await send({"type":"processing","message":"Generating an evidence-linked SOAP draft..."})
+            loop=asyncio.get_running_loop()
+            def publish(event):
+                asyncio.run_coroutine_threadsafe(send({"type":"process_event",**event}),loop).result(timeout=10)
+            await asyncio.to_thread(container.consultation_review.generate,workflow_id,actor,1,transcript_id,publish)
+            note, version = container.note_lifecycle_service.get(container.workflow_repository.get(workflow_id).note_id,actor=actor)
+            payload = container.note_lifecycle_service.payload(note,version,patient_name=patient.name)
+            audio_metadata=cleanup_audio_session(session,patient_ref=patient_id,note_ref=note.note_id)
+            container.consultation_review.store.change(workflow_id,lambda row:{**row,"audio_retention":audio_metadata})
+            await send({"type":"soap_note","note_id":note.note_id,"note_state":note.state.value,"soap":{**payload["soap"],"audio_retention":audio_metadata},"urdu_transcript":urdu_payload,"english_transcript":english_payload})
         except Exception as exc:
+            review = container.consultation_review.store.get(workflow_id)
+            if review and review.get("status")=="SOAP_FAILED":
+                cleanup_audio_session(session,patient_ref=patient_id,allow_retention=False)
+                await send({"type":"conversation_ready","conversation_review":container.consultation_review.payload(workflow_id,actor)})
+                return
+            if review and review.get("status")=="TRANSLATING":
+                container.consultation_review.store.change(workflow_id,lambda row:{**row,"status":"TRANSLATION_FAILED","last_error":"Translation interrupted. Original conversation is preserved; retry translation."})
             await trace(stage, "failed", {"code":str(getattr(exc,"code","DOCUMENTATION_FAILED")), "message":"Processing interrupted. Retry from this encounter."})
             cleanup_audio_session(session, patient_ref=patient_id, allow_retention=False)
             print(f"[Documentation] failed safely ({type(exc).__name__})")

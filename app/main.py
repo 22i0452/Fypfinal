@@ -41,6 +41,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(application: FastAPI):
         container.initialize()
+        container.consultation_review.recover_interrupted()
         yield
 
     application = FastAPI(title="MedFlowAI Clinic Platform", lifespan=lifespan)

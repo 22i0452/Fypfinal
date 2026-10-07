@@ -141,6 +141,7 @@ function chooseVisitStage(stage) {
   if (stage!=='review' && (soapDraftTouched || Object.values(soapSectionEditing).some(Boolean))) {showToast('Save or cancel your note changes before moving to another stage.','error');return;}
   if (visitLocked() && stage!==visitStage) {showToast('The active action is still running.','error');return;}
   if(stage==='capture' && (!isConsultationRecordable() || !hasRequiredConsent() || soapLastSavedNoteId)){showToast('Complete preparation before recording, or review the saved note.','error');return;}
+  if(stage==='transcript' && !window.hasConversationReview?.()){showToast('The saved conversation will be available after processing.','error');return;}
   if(stage==='review' && !generatedSoap){showToast('The SOAP draft will be available after the recording is processed.','error');return;}
   if(stage==='finish' && (generatedNoteState!=='APPROVED_BY_DOCTOR' || soapDraftTouched)){showToast('Save and approve the note before finishing this visit.','error');return;}
   visitStage=stage;rememberVisit();renderClinicFlow();
@@ -195,9 +196,9 @@ function renderClinicFlow(){
   const state=activeWorkflow?.state || '';
   const labels={PATIENT_UNVERIFIED:'Verification needed',BOOKING_REQUIRED:'Ready to book',BOOKING_CONFIRMED:'Appointment confirmed',CONSULTATION_READY:'Ready for consultation',CONSULTATION_ACTIVE:'Consultation active',DOCUMENTATION_PROCESSING:'Preparing documentation',NOTE_REVIEW_REQUIRED:'Doctor review',NOTE_APPROVED:'Approved',ENCOUNTER_COMPLETED:'Completed',FAILED:'Attention needed',CANCELLED:'Cancelled'};
   document.getElementById('workflowStatePill').textContent=visitLoading?'Loading visit':labels[state] || (state?state.replaceAll('_',' ').toLowerCase():'No active visit');
-  const headings={prepare:['BEFORE THE CONSULTATION','A considered beginning.'],capture:['DURING THE CONSULTATION',isRecording?'The conversation, uninterrupted.':'Space for the conversation.'],processing:['PREPARING YOUR DOCUMENTATION','From conversation to clarity.'],review:['DOCTOR REVIEW','Your judgement. A clearer record.'],finish:['AFTER THE CONSULTATION',state==='ENCOUNTER_COMPLETED'?'A visit, thoughtfully completed.':'The final details.']};
+  const headings={prepare:['BEFORE THE CONSULTATION','A considered beginning.'],capture:['DURING THE CONSULTATION',isRecording?'The conversation, uninterrupted.':'Space for the conversation.'],processing:['PREPARING YOUR DOCUMENTATION','From conversation to clarity.'],transcript:['CONVERSATION REVIEW','First, the conversation.'],review:['DOCTOR REVIEW','Your judgement. A clearer record.'],finish:['AFTER THE CONSULTATION',state==='ENCOUNTER_COMPLETED'?'A visit, thoughtfully completed.':'The final details.']};
   const [kicker,title]=headings[visitStage];document.getElementById('visitStageKicker').textContent=kicker;document.getElementById('visitStageTitle').textContent=title;
-  const stages=['prepare','capture','review','finish'];view.querySelectorAll('.visit-step').forEach(b=>{b.classList.toggle('active',b.dataset.stage===(visitStage==='processing'?'capture':visitStage));b.classList.toggle('done',stages.indexOf(b.dataset.stage)<stages.indexOf(visitStage==='processing'?'capture':visitStage));if(b.classList.contains('active'))b.setAttribute('aria-current','step');else b.removeAttribute('aria-current');});
+  const stages=['prepare','capture','transcript','review','finish'];view.querySelectorAll('.visit-step').forEach(b=>{b.classList.toggle('active',b.dataset.stage===(visitStage==='processing'?'capture':visitStage));b.classList.toggle('done',stages.indexOf(b.dataset.stage)<stages.indexOf(visitStage==='processing'?'capture':visitStage));if(b.classList.contains('active'))b.setAttribute('aria-current','step');else b.removeAttribute('aria-current');});
   const ready=isConsultationRecordable(),granted=hasRequiredConsent();
   const prepareRows=[['user-check','Identity verified',!['','PATIENT_UNVERIFIED'].includes(state),'Verification required before booking'],['calendar-check','Appointment confirmed',Boolean(activeAppointment),'Choose an appointment'],['clipboard-check','Patient checked in',Boolean(activeEncounter),'Confirm arrival'],['shield-check','Patient choices recorded',granted,'Recording and AI permissions']];
   document.getElementById('preparationSteps').innerHTML=prepareRows.map(([icon,label,done,sub])=>`<div class="preparation-item ${done?'done':''}">${studioIcon(done?'check':icon)}<span><strong>${label}</strong><small>${done?'Complete':sub}</small></span></div>`).join('');
@@ -212,8 +213,9 @@ function renderClinicFlow(){
   document.getElementById('correctIntakeBtn').disabled=!selectedPatient || Boolean(activeEncounter) || visitLocked();
   const action=document.getElementById('visitNextBtn');let actionLabel='Start visit';let disabled=visitLoading || visitActionBusy || pendingRecordingStart || soapSaveBusy;
   if(visitStage==='prepare')actionLabel=!activeWorkflow || ['ENCOUNTER_COMPLETED','CANCELLED'].includes(state)?'Start new visit':state==='PATIENT_UNVERIFIED'?'Verify patient':['PATIENT_VERIFIED','INTAKE_IN_PROGRESS','INTAKE_COMPLETED'].includes(state)?'Confirm intake':state==='BOOKING_REQUIRED'?'Book appointment':state==='BOOKING_CONFIRMED'?'Check in patient':state==='FAILED' && activeWorkflow.resume_state==='DOCUMENTATION_PROCESSING' && !soapLastSavedNoteId?'Try recording again':ready?(granted?'Continue to consultation':'Record patient choices'):'Return to visits';
-  if(visitStage==='capture'){actionLabel=isRecording?'Stop & prepare draft':'Start recording';disabled ||= !ready || !granted;}
-  if(visitStage==='processing'){actionLabel='Preparing documentation';disabled=true;}
+  if(visitStage==='capture'){actionLabel=isRecording?'Finish recording':'Start recording';disabled ||= !ready || !granted;}
+  if(visitStage==='processing'){actionLabel='Processing conversation';disabled=true;}
+  if(visitStage==='transcript'){actionLabel=window.conversationActionLabel?.() || 'Generate SOAP';disabled ||= visitLocked();}
   if(visitStage==='review'){actionLabel=soapDraftTouched?'Save changes':generatedNoteState==='REVIEW_REQUIRED'?'Approve note':generatedNoteState==='APPROVED_BY_DOCTOR'?'Continue to summary':'Review draft';disabled ||= Object.values(soapSectionEditing).some(Boolean);}
   if(visitStage==='finish'){actionLabel=state==='ENCOUNTER_COMPLETED'?'Back to today':'Complete visit';disabled ||= generatedNoteState!=='APPROVED_BY_DOCTOR' || soapDraftTouched;renderFinishWorkspace();}
   action.innerHTML=escHtml(actionLabel)+studioIcon(isRecording?'square':visitStage==='processing'?'loader-circle':'arrow-right');action.disabled=disabled;
@@ -228,6 +230,7 @@ function renderClinicFlow(){
 async function advanceVisit(){
   if(visitActionBusy || visitLoading)return;
   if(visitStage==='capture'){await toggleRecording();return;}
+  if(visitStage==='transcript'){await window.advanceConversationReview?.();return;}
   if(visitStage==='review'){
     if(soapDraftTouched){await saveSoapDraft();renderClinicFlow();return;}
     if(generatedNoteState==='APPROVED_BY_DOCTOR'){chooseVisitStage('finish');return;}

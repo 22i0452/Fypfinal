@@ -30,7 +30,7 @@ class ProcessObservabilityTests(unittest.TestCase):
 
     def capture(self):
         with self.client.websocket_connect('/ws') as ws:
-            ws.send_json({'type':'start','patient_id':self.patient.patient_id,'workflow_id':self.context.workflow.workflow_id,'encounter_id':self.context.encounter.encounter_id,'capture_id':'SYNTHETIC-TRACE','sample_rate':16000})
+            ws.send_json({'type':'start','auto_soap':True,'patient_id':self.patient.patient_id,'workflow_id':self.context.workflow.workflow_id,'encounter_id':self.context.encounter.encounter_id,'capture_id':'SYNTHETIC-TRACE','sample_rate':16000})
             self.assertEqual(ws.receive_json()['type'],'recording_started')
             ws.send_bytes(bytes(64000));ws.send_json({'type':'stop'})
             events=[]

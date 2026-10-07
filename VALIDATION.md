@@ -79,3 +79,28 @@ QA_CHROMIUM_PATH=/path/to/chromium node tests/test_hands_free_browser.cjs
 `tests/evidence_fixture.py` and the existing hands-free fixture use temporary databases and synthetic providers, never real patient records or audio. Audit endpoints exist only in those test fixtures. The clinical browser test covers real verification, booking, consent, WebSocket capture, reload during processing, statement/turn/capture inspectors, source navigation, filters, three modal widths (1440/1280/390), cancelled and saved edits, fresh report/version, approval, summary, completion, archive continuity, stale-patient events, manual saved-handoff IDs, same-appointment verification, disconnect/reconnect and failure recovery. The hands-free test additionally checks field receipts, separate confirmation IDs and microphone muting while inspecting, then resumes the real synthetic booking and existing recovery checks.
 
 Synthetic QA establishes workflow wiring and evidence scope, not physical microphone quality, live Urdu speech accuracy, acoustic diarization, clinical correctness or calibrated confidence. The full Python discovery remains blocked in three legacy receptionist audio modules by missing native PortAudio; these import errors must not be described as a fully passing suite.
+
+
+## Guided consultation workflow — Batch 1 (7 October 2026)
+
+Final checks: **24 targeted Python tests passed**, including ten guided-checkpoint regressions; **22 Node tests passed**. Full discovery produced **168 results: 165 passed, three existing native PortAudio import errors, zero assertion failures**. The unavailable modules remain `test_receptionist_corrections`, `test_receptionist_integration` and `test_receptionist_speech`. This is not a fully passing discovery suite. Startup TTS warmup was suppressed in full-suite QA; provider outputs remained synthetic. Python compilation, changed JavaScript syntax and whitespace checks passed.
+
+Three completed Chromium journeys passed with zero page JavaScript errors:
+
+- New guided journey used the actual microphone Start/Finish handlers with generated Web Audio. It covered default automatic mode off, capture-only presentation, reload during transcription, no SOAP call before review, saved transcript checkpoint, per-turn edit/cancel, role/English correction, unsaved patient-switch guard, saved revision and reload, failed SOAP recovery, retry and reload during generation, collapsed/open source panel, clickable evidence navigation, process expansion/collapse, doctor review/approval, approved summary and completion of the original appointment/encounter/workflow. It also exercised the on/off Automatic SOAP control, persisted preference and actual automatic capture path. Capture, transcript and SOAP screens fit 1440/1280/390 pixel widths without horizontal overflow.
+- Existing clinical/evidence journey covered the optional automatic path, denied microphone permission, reload, source filters/inspection, SOAP amendments and stale-check clearing, immutable note versions, approval, archived visit reopening, receptionist booking/handoff, disconnect cleanup and pre-transcript failure recovery.
+- Existing hands-free reception journey retained its complete booking, actual slots, final confirmation, exact practitioner and handoff. Manual mode, switching/history, pause, interruption, synthetic playback gating, editable replies, provider failure, explicit Send now, stale response, permission recovery and responsive layouts passed.
+
+Backend checks additionally cover idempotent SOAP replay, concurrent generation (one provider call), stale revision rejection, unknown/blank corrections, cross-patient authorization, saved-original translation retry, interrupted server claims, both sides of checkpoint/workflow writes and an explicit re-record superseding the checkpoint without deleting its original transcript.
+
+Reproduce with app dependencies plus Playwright/Chromium:
+
+```sh
+python -m unittest tests.test_guided_consultation tests.test_consultation_websocket tests.test_process_observability tests.test_workflow_orchestrator tests.test_prepare_consultation -q
+node --test tests/test_evidence_ui.cjs tests/test_voice_engine.cjs
+QA_CHROMIUM_PATH=/path/to/chromium node tests/test_guided_browser.cjs
+QA_CHROMIUM_PATH=/path/to/chromium node tests/test_evidence_browser.cjs
+QA_CHROMIUM_PATH=/path/to/chromium node tests/test_hands_free_browser.cjs
+```
+
+Each browser script uses temporary synthetic records/providers. Guided/evidence scripts use localhost:8765 and must run sequentially; hands-free uses localhost:8766. Browser delay/failure controls exist only in the test fixture. No production delays, fabricated confidence or streaming captions were introduced. Live Urdu accuracy, physical microphones, actual paid-provider timings and clinical correctness remain unmeasured.

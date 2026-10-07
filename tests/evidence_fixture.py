@@ -41,6 +41,28 @@ def delayed_transcribe(*args,**kwargs):
  time.sleep(3)
  return original_transcribe(*args,**kwargs)
 c.documentation_service.transcribe=delayed_transcribe
+
+# Synthetic controls for checkpoint/retry browser tests; no production routes.
+qa_controls={'soap_calls':0,'soap_delay':0,'fail_soap':False}
+original_generate=c.documentation_service.generate_draft
+def controlled_generate(*args,**kwargs):
+ import time
+ qa_controls['soap_calls']+=1
+ time.sleep(qa_controls['soap_delay'])
+ if qa_controls['fail_soap']:
+  qa_controls['fail_soap']=False
+  raise RuntimeError('Synthetic SOAP failure')
+ return original_generate(*args,**kwargs)
+c.documentation_service.generate_draft=controlled_generate
+@app.post('/audit/soap-controls')
+async def soap_controls(request:Request):
+ values=await request.json()
+ for key in ('soap_delay','fail_soap'):
+  if key in values:qa_controls[key]=values[key]
+ return qa_controls
+@app.get('/audit/soap-controls')
+async def read_soap_controls():
+ return qa_controls
 if __name__=='__main__':
  import uvicorn
  uvicorn.run(app,host='127.0.0.1',port=8765,log_level='warning')

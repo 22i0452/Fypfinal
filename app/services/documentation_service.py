@@ -216,6 +216,10 @@ class DocumentationService:
             conversation,
             template={"template_id": template.template_id, "name": template.name, "sections": template.sections},
         )
+        # Re-check after the provider call; an old response must not attach to a closed visit.
+        latest = self.lifecycle.orchestrator.get_session(workflow_id, actor=actor)
+        if latest.state.value != "DOCUMENTATION_PROCESSING" or latest.note_id:
+            raise DocumentationError("VERSION_CONFLICT", "The visit changed during generation. Reload it before continuing.")
         note_id = new_id("NOTE")
         structured = self.build_structured_soap(note_id, legacy_soap, transcript)
         version = SOAPNoteVersion(

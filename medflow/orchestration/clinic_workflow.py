@@ -214,6 +214,8 @@ class ClinicWorkflowOrchestrator:
             return action in {
                 WorkflowAction.START_DOCUMENTATION,
                 WorkflowAction.DOCUMENTATION_READY,
+                WorkflowAction.TRANSCRIPT_READY,
+                WorkflowAction.RETURN_TO_TRANSCRIPT,
                 WorkflowAction.MARK_FAILED,
                 WorkflowAction.REQUEST_HUMAN_ASSISTANCE,
                 WorkflowAction.RESUME,

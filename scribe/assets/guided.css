@@ -1,0 +1,19 @@
+/* Guided screens keep the active task in focus; sources expand only when requested. */
+#visitView[data-stage="capture"] .clinical-columns{grid-template-columns:1fr;max-width:900px;margin:auto}
+#visitView[data-stage="capture"] .transcript-card,#visitView[data-stage="processing"] .clinical-columns{display:none}
+#visitView[data-stage="transcript"] .clinical-workspace{display:block}
+#visitView[data-stage="transcript"] .clinical-columns{display:block;max-width:1040px;margin:auto}
+#visitView[data-stage="transcript"] .soap-card,#visitView[data-stage="transcript"] .record-focus,#visitView[data-stage="transcript"] .record-toolbar,#visitView[data-stage="transcript"] .recording-status{display:none}
+#visitView[data-stage="review"] .clinical-columns{grid-template-columns:1fr;max-width:1100px;margin:auto}
+#visitView[data-stage="review"]:not(.source-drawer-open) .transcript-card{display:none}
+#visitView[data-stage="review"].source-drawer-open .clinical-columns{grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr)}
+.guided-mode-control{display:flex;align-items:center;gap:16px;padding:0 3px 18px;font-size:11px;color:var(--ink-2)}.guided-mode-control label{display:flex;gap:9px;align-items:center}.guided-mode-control input{accent-color:var(--accent);width:14px;height:14px}.guided-mode-control small{font-size:10px;color:var(--ink-3)}
+#visitView:not([data-stage="capture"]) .guided-mode-control{display:none}
+.conversation-review-bar{max-width:1040px;margin:0 auto 22px;padding:22px 0;display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}.conversation-review-bar[hidden]{display:none}.conversation-review-bar h3{font:400 29px var(--serif);margin:9px 0}.conversation-review-bar p{font-size:11px;color:var(--ink-3);line-height:1.8}.conversation-review-bar>div:last-of-type{display:flex;align-items:center;gap:15px}.conversation-review-bar .conversation-error{flex-basis:100%;border:1px solid #ca969d33;border-radius:12px;padding:13px;color:var(--ev-failed)}
+.conversation-turn-actions{display:flex;gap:8px;margin-top:13px}.conversation-turn-actions .note-action{font-size:10px}.conversation-turn-editor{display:grid;grid-template-columns:1fr 1fr;gap:15px;padding:18px;margin:15px 0;border:1px solid #c9af8233;border-radius:15px;background:#c9af8205}.conversation-turn-editor label{display:flex;flex-direction:column;gap:8px;font-size:10px;color:var(--ink-3)}.conversation-turn-editor textarea{min-height:95px;font-size:13px;line-height:1.8;resize:vertical}.conversation-turn-editor input,.conversation-turn-editor select{font-size:12px}.turn-edit-full{grid-column:1/-1}.turn-edit-label{color:var(--ev-review);font-size:10px}.turn-edited{border-left:2px solid var(--ev-review);padding-left:14px!important}
+#visitView[data-stage="transcript"] .transcript-scroll{max-height:none}.stage-heading #conversationSourceToggle{margin-left:auto}.stage-heading #conversationSourceToggle[hidden]{display:none}
+#visitView:not([data-stage="processing"]):not(.show-process-inspector) #processObservatory{display:none}
+@media(max-width:700px){#visitView[data-stage="review"].source-drawer-open .clinical-columns{grid-template-columns:1fr}.guided-mode-control{align-items:flex-start;flex-direction:column;gap:8px}.conversation-review-bar{padding:10px 0}.conversation-turn-editor{padding:14px;grid-template-columns:1fr}.visit-step{font-size:9px;gap:4px}.visit-step svg{width:13px;height:13px}.stage-heading{flex-wrap:wrap}.stage-heading #conversationSourceToggle{margin-left:0;font-size:10px}.conversation-review-bar h3{font-size:26px}}
+
+#visitView[data-stage="processing"]:not(.show-process-inspector) .process-inspection{display:none}
+#guidedProcessToggle[hidden]{display:none}
