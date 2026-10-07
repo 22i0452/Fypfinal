@@ -17,6 +17,12 @@ const state = {
   selectedDemoId: "",
   demoMode: "voice",
   demoRunning: false,
+  demoSessionId: 0,
+  demoAbort: null,
+  demoSpeechAbort: null,
+  demoPlaybackResolve: null,
+  demoSpeechId: 0,
+  demoCompleting: false,
   demoBusy: false,
   demoHistory: [],
   demoSaving: false,
@@ -220,6 +226,9 @@ function setPanelVisible(el, visible) {
 function showView(view) {
   const next = view === "demo" || view === "live" || view === "intake" ? view : "intake";
   state.view = next;
+  if (next !== "demo" && window.liveConversation?.controller.active) {
+    stopDemoAudio(); window.liveConversation.controller.pause("Conversation paused while you are away. Resume to continue.");
+  }
 
   setPanelVisible(document.getElementById("viewIntake"), next === "intake");
   setPanelVisible(document.getElementById("viewDemo"), next === "demo");
@@ -323,7 +332,9 @@ function selectDemoScenario(scenarioId) {
 }
 
 function setDemoMode(mode) {
-  state.demoMode = mode === "voice" ? "voice" : "chat";
+  const nextMode = mode === "voice" ? "voice" : "chat";
+  if (state.demoMode !== nextMode) window.liveConversation?.stop();
+  state.demoMode = nextMode;
   const chatTab = document.getElementById("demoModeChat");
   const voiceTab = document.getElementById("demoModeVoice");
   if (chatTab) chatTab.classList.toggle("active", state.demoMode === "chat");
@@ -332,6 +343,7 @@ function setDemoMode(mode) {
   const voiceBtn = document.getElementById("demoVoiceBtn");
   if (runBtn) runBtn.hidden = state.demoMode !== "chat";
   if (voiceBtn) voiceBtn.hidden = state.demoMode !== "voice";
+  window.liveConversation?.render();
 }
 
 function splitBilingualDisplay(text) {
@@ -401,13 +413,21 @@ function setDemoComposerEnabled(enabled) {
   }
   if (micBtn) micBtn.disabled = !enabled || state.demoBusy;
   window.renderReceptionDoctorChoices?.();
+  window.liveConversation?.render();
 }
 
 function stopDemoAudio() {
-  if (state.demoAudio) {
+  const playing = state.demoAudio;
+  state.demoSpeechId += 1;
+  state.demoSpeechAbort?.abort();
+  state.demoSpeechAbort = null;
+  const settle = state.demoPlaybackResolve;
+  state.demoPlaybackResolve = null;
+  settle?.();
+  if (playing) {
     try {
-      state.demoAudio.pause();
-      state.demoAudio.src = "";
+      playing.pause();
+      playing.src = "";
     } catch (_) {
       /* ignore */
     }
@@ -538,6 +558,11 @@ function stopDemoMic() {
 }
 
 function stopDemo() {
+  state.demoSessionId += 1;
+  state.demoAbort?.abort();
+  state.demoAbort = null;
+  state.demoCompleting = false;
+  window.liveConversation?.stop();
   stopDemoMic();
   stopDemoAudio();
   state.demoRunning = false;
@@ -712,28 +737,52 @@ async function bookDemoAlternative(index) {
   }
 }
 
+function demoSessionAlive(epoch) {
+  return state.demoRunning && state.demoSessionId === epoch;
+}
+
 async function playDemoSpeech(speechText, fullReply) {
   const text = String(speechText || fullReply || "").trim();
-  if (!text) return;
-  setStatus("Samra is speaking (Urdu TTS)…");
-  const tts = await api("/api/desk/demo-calls/tts", {
-    method: "POST",
-    body: JSON.stringify({ text: fullReply || text }),
-  });
-  const url = tts.audio_url;
-  if (!url) return;
+  if (!text || !state.demoRunning) return;
+  stopDemoAudio();
+  const epoch = state.demoSessionId, speechId = state.demoSpeechId;
+  const abort = new AbortController(); state.demoSpeechAbort = abort;
+  window.liveConversation?.remember(speechText, fullReply);
+  window.liveConversation?.hold("processing");
+  setStatus("Preparing Samra’s voice…");
+  let tts;
+  try {
+    tts = await api("/api/desk/demo-calls/tts", {
+      method: "POST", signal: abort.signal,
+      body: JSON.stringify({ text: fullReply || text }),
+    });
+  } catch (error) { if (abort.signal.aborted || !demoSessionAlive(epoch)) return; throw error; }
+  if (!demoSessionAlive(epoch) || speechId !== state.demoSpeechId || !tts.audio_url) return;
   await new Promise((resolve, reject) => {
-    stopDemoAudio();
-    const audio = new Audio(url);
+    const audio = new Audio(tts.audio_url);
     state.demoAudio = audio;
-    audio.onplaying = () => window.receptionPhase?.("speaking", "Audio playback active");
-    audio.onended = () => {window.receptionPhase?.("ready", "Your turn");resolve();};
-    audio.onerror = () => reject(new Error("Unable to play Samra audio"));
-    audio.play().catch(reject);
+    const settle = error => {
+      audio.onplaying = audio.onended = audio.onerror = null;
+      if (state.demoAudio === audio) state.demoAudio = null;
+      if (state.demoPlaybackResolve === cancel) state.demoPlaybackResolve = null;
+      error ? reject(error) : resolve();
+    };
+    const cancel = () => settle();
+    state.demoPlaybackResolve = cancel;
+    audio.onplaying = () => {
+      window.liveConversation?.hold("speaking");
+      window.receptionPhase?.("speaking", "Audio playback active");
+      window.liveConversation?.render();
+    };
+    audio.onended = () => settle();
+    audio.onerror = () => settle(new Error("Unable to play Samra audio"));
+    audio.play().catch(error => settle(error));
   });
+  if (state.demoSpeechAbort === abort) state.demoSpeechAbort = null;
 }
 
 async function beginDemoSession({ voice }) {
+  if (state.demoSaving) return;
   const scenario = getSelectedDemo();
   if (!scenario) {
     showToast("Select a demo scenario first.", "error");
@@ -743,6 +792,8 @@ async function beginDemoSession({ voice }) {
   hideDemoResult();
   setDemoMode(voice ? "voice" : "chat");
   state.demoRunning = true;
+  state.demoAbort = new AbortController();
+  const epoch = state.demoSessionId;
   state.demoBusy = true;
   document.getElementById("demoTranscript").innerHTML = "";
   document.getElementById("demoStopBtn").hidden = false;
@@ -755,10 +806,14 @@ async function beginDemoSession({ voice }) {
   setStatus(voice ? `Starting voice call · ${scenario.title}` : `Starting chat demo · ${scenario.title}`);
 
   try {
+    if (voice) await window.liveConversation?.startIfEnabled();
+    if (!demoSessionAlive(epoch)) return;
     const started = await api("/api/desk/demo-calls/start", {
+      signal: state.demoAbort?.signal,
       method: "POST",
       body: JSON.stringify({ scenario_id: scenario.id }),
     });
+    if (!demoSessionAlive(epoch)) return;
     state.demoHistory = started.history || [];
     state.lastSpeech = null;
     renderSpeechUnderstanding(null);
@@ -771,12 +826,15 @@ async function beginDemoSession({ voice }) {
         showToast(ttsError.message || "TTS playback failed — you can still use Mic", "error");
       }
     }
+    if (!demoSessionAlive(epoch)) return;
     state.demoBusy = false;
     setDemoComposerEnabled(true);
+    window.liveConversation?.ready(false);
     if (!voice) document.getElementById("demoInput").focus();
     setStatus(voice ? `Voice call · ${scenario.title} · tap Mic to reply` : `Chat demo · ${scenario.title} · your turn`);
-    showToast(voice ? "Voice call started — Samra spoke; tap Mic to reply." : "Chat demo started — reply as the caller.");
+    showToast(voice ? (window.liveConversation?.supported() ? "Conversation started — speak and pause naturally." : "Voice call started — Samra spoke; tap Mic to reply.") : "Chat demo started — reply as the caller.");
   } catch (error) {
+    if (!demoSessionAlive(epoch)) return;
     stopDemo();
     showToast(error.message || "Unable to start demo", "error");
     setStatus("Demo failed");
@@ -800,6 +858,9 @@ async function sendDemoMessage(event) {
   const text = String(input.value || "").trim();
   if (!text) return;
 
+  const epoch = state.demoSessionId;
+  let needsReview = false;
+  window.liveConversation?.hold();
   input.value = "";
   state.lastSpeech = null;
   appendDemoLine("patient", text);
@@ -809,6 +870,7 @@ async function sendDemoMessage(event) {
 
   try {
     const result = await api("/api/desk/demo-calls/turn", {
+      signal: state.demoAbort?.signal,
       method: "POST",
       body: JSON.stringify({
         scenario_id: scenario.id,
@@ -816,7 +878,10 @@ async function sendDemoMessage(event) {
         history: state.demoHistory,
       }),
     });
+    if (!demoSessionAlive(epoch)) return;
     state.demoHistory = result.history || state.demoHistory;
+    needsReview = !!result.understanding?.needs_review;
+    state.demoCompleting = !!result.booking_complete;
     renderSpeechUnderstanding(result.understanding);
     if (result.understanding?.needs_review) input.value = text;
     window.receptionArtifact?.(result.process);
@@ -831,6 +896,7 @@ async function sendDemoMessage(event) {
     } else {
       setStatus(`Chat demo · ${scenario.title} · your turn`);
     }
+    if (!demoSessionAlive(epoch)) return;
     if (result.booking_complete) {
       // The caller confirmed the summary: the call is over, so save it.
       state.demoBusy = false;
@@ -838,6 +904,10 @@ async function sendDemoMessage(event) {
       return;
     }
   } catch (error) {
+    if (!demoSessionAlive(epoch)) return;
+    needsReview = true;
+    input.value = text;
+    window.liveConversation?.pause("Answer could not be processed. Retry or edit your answer; accepted details are retained.");
     appendDemoLine(
       "agent",
       "معذرت، جواب نہیں آ سکا۔ دوبارہ کوشش کریں۔\nSorry, I could not reply. Please try again."
@@ -845,62 +915,67 @@ async function sendDemoMessage(event) {
     showToast(error.message || "Demo reply failed", "error");
     setStatus("Demo reply failed");
   } finally {
+    if (demoSessionAlive(epoch)) {
+      state.demoBusy = false;
+      setDemoComposerEnabled(true);
+      window.liveConversation?.ready(needsReview);
+      if (state.demoMode !== "voice") input.focus();
+    }
+  }
+}
+
+async function submitDemoAudio(wavBlob, { automatic = false } = {}) {
+  if (!state.demoRunning || state.demoBusy) return;
+  const epoch = state.demoSessionId;
+  const captureGeneration = window.liveConversation?.controller.generation;
+  const alive = () => demoSessionAlive(epoch) && (!automatic || captureGeneration === window.liveConversation?.controller.generation);
+  state.demoBusy = true; setDemoComposerEnabled(false);
+  window.receptionPhase?.("speech", "Transcribing your completed answer");
+  const sttStarted = performance.now();
+  try {
+    const form = new FormData();
+    form.append("audio", wavBlob, "demo-caller.wav");
+    form.append("history", JSON.stringify(state.demoHistory));
+    const response = await fetch("/api/desk/demo-calls/stt", { method: "POST", body: form, signal: state.demoAbort?.signal });
+    const payload = await response.json().catch(() => ({}));
+    if (!alive()) return;
+    if (!response.ok) throw new Error(apiMessage(payload, "STT failed"));
+    window.receptionSttResult?.(payload, performance.now() - sttStarted);
+    state.lastSpeech = payload;
+    renderSpeechUnderstanding({ raw: payload.raw_text || payload.text || "", needs_review: payload.needs_review, reason: payload.reason });
+    const text = String(payload.text || "").trim();
+    if (payload.needs_review || payload.garbled || !text) {
+      document.getElementById("demoInput").value = payload.raw_text || text;
+      window.liveConversation?.pause("Review the recognized words, retry, or type. Accepted details are retained.");
+      window.receptionPhase?.("review", "Review the recognized answer; collected details are retained");
+      showToast(payload.hint || "Review the recognized words, retry, or type.", "error");
+      return;
+    }
+    document.getElementById("demoInput").value = text;
     state.demoBusy = false;
-    setDemoComposerEnabled(true);
-    if (state.demoMode !== "voice") input.focus();
+    await sendDemoMessage();
+  } catch (error) {
+    if (!alive()) return;
+    window.liveConversation?.pause("Transcription failed. Resume to retry or type your answer.");
+    window.receptionPhase?.("error", error.message || "Speech transcription failed");
+    showToast(error.message || "Mic transcription failed", "error");
+  } finally {
+    if (demoSessionAlive(epoch)) {
+      state.demoBusy = false; setDemoComposerEnabled(true);
+      if (!automatic && !window.receptionIsError?.() && !state.lastSpeech?.needs_review) window.receptionPhase?.("ready", "Tap the microphone to reply");
+    }
   }
 }
 
 async function toggleDemoMic() {
-  if (!state.demoRunning || state.demoBusy) return;
+  if (!state.demoRunning || state.demoBusy || window.liveConversation?.supported()) return;
   if (state.demoRecording) {
     const wavBlob = stopDemoMicCapture({ finalize: true });
     if (!wavBlob) {
       showToast("No speech captured. Hold Mic a bit longer and speak clearly.", "error");
       return;
     }
-    setDemoComposerEnabled(false);
-    state.demoBusy = true;
-    window.receptionPhase?.("speech", "Transcribing your recorded turn");
-    setStatus("Transcribing speech…");
-    const sttStarted = performance.now();
-    try {
-      const form = new FormData();
-      form.append("audio", wavBlob, "demo-caller.wav");
-      form.append("history", JSON.stringify(state.demoHistory));
-      const response = await fetch("/api/desk/demo-calls/stt", { method: "POST", body: form });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(apiMessage(payload, "STT failed"));
-      }
-      window.receptionSttResult?.(payload, performance.now()-sttStarted);
-      state.lastSpeech = payload;
-      renderSpeechUnderstanding({raw: payload.raw_text || payload.text || "", needs_review: payload.needs_review, reason: payload.reason});
-      if (payload.needs_review || payload.garbled) {
-        document.getElementById("demoInput").value = payload.raw_text || payload.text || "";
-        showToast(payload.hint || "Review the recognized words, retry, or type.", "error");
-        window.receptionPhase?.("review", "Review the recognized answer; collected details are retained");
-        setDemoComposerEnabled(true);
-        return;
-      }
-      const text = String(payload.text || "").trim();
-      if (!text) {
-        showToast("Could not understand audio. Try again or type.", "error");
-        setDemoComposerEnabled(true);
-        return;
-      }
-      document.getElementById("demoInput").value = text;
-      state.demoBusy = false;
-      await sendDemoMessage();
-    } catch (error) {
-      window.receptionPhase?.("error", error.message || "Speech transcription failed");
-      showToast(error.message || "Mic transcription failed", "error");
-      setDemoComposerEnabled(true);
-    } finally {
-      state.demoBusy = false;
-      setDemoComposerEnabled(true);
-      if(!window.receptionIsError?.() && !state.lastSpeech?.needs_review) window.receptionPhase?.("ready", "Tap the microphone to reply");
-    }
+    await submitDemoAudio(wavBlob);
     return;
   }
   stopDemoAudio();
@@ -908,6 +983,7 @@ async function toggleDemoMic() {
     showToast("Microphone is not available in this browser.", "error");
     return;
   }
+  const epoch = state.demoSessionId;
   state.demoBusy = true;
   setDemoComposerEnabled(false);
   try {
@@ -919,9 +995,11 @@ async function toggleDemoMic() {
         autoGainControl: true,
       },
     });
+    if (!demoSessionAlive(epoch)) { stream.getTracks().forEach(t => t.stop()); return; }
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     const ctx = new AudioCtx({ sampleRate: 16000 });
     if (ctx.state === "suspended") await ctx.resume();
+    if (!demoSessionAlive(epoch)) { stream.getTracks().forEach(t => t.stop()); await ctx.close(); return; }
     const source = ctx.createMediaStreamSource(stream);
     const processor = ctx.createScriptProcessor(1024, 1, 1);
     const mute = ctx.createGain();
@@ -946,11 +1024,11 @@ async function toggleDemoMic() {
     window.receptionPhase?.("listening", "Speak in Urdu, then tap Stop");
     setStatus("Listening… speak clearly in Urdu, then tap Stop");
   } catch (error) {
+    if (!demoSessionAlive(epoch)) return;
     stopDemoMicCapture({ finalize: false });
     showToast(error.message || "Unable to access microphone", "error");
   } finally {
-    state.demoBusy = false;
-    setDemoComposerEnabled(true);
+    if (demoSessionAlive(epoch)) { state.demoBusy = false; setDemoComposerEnabled(true); }
   }
 }
 

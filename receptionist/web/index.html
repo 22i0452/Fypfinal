@@ -6,8 +6,9 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Medflow AI | Receptionist</title>
 <link href="/branding/icon" rel="icon" type="image/png"/>
-<link href="/assets/ui.css?v=20261007-short-replies" rel="stylesheet"/>
-<link href="/receptionist-static/receptionist.css?v=20261007-short-replies" rel="stylesheet"/>
+<link href="/assets/ui.css?v=20261007-hands-free" rel="stylesheet"/>
+<link href="/receptionist-static/receptionist.css?v=20261007-hands-free" rel="stylesheet"/>
+<link rel="stylesheet" href="/receptionist-static/live-conversation.css?v=20261007-hands-free"/>
 </head>
 <body class="receptionist-body">
 <div class="app-shell receptionist-shell">
@@ -154,6 +155,12 @@
 <button class="note-action" hidden="" id="demoLiveBtn" onclick="showView('live')" type="button">Open phone live calls</button>
 </div>
 </div>
+<section class="live-voice-controls" id="liveVoiceControls" aria-label="Conversation controls">
+<div class="live-voice-heading"><div><span class="section-kicker">CONVERSATION MODE</span><h4>Speak naturally.</h4></div><label class="voice-switch"><input id="handsFreeToggle" type="checkbox" onchange="setHandsFree(this.checked)"/><span class="voice-switch-track" aria-hidden="true"></span><span>Hands-free</span></label></div>
+<div class="live-voice-state"><span class="voice-state-dot" aria-hidden="true"></span><strong id="liveVoiceStatus" role="status" aria-live="polite">Manual Mic / Stop</strong><p id="liveVoiceDetail">Your existing microphone controls are available below.</p></div>
+<div class="live-voice-actions" id="liveVoiceActions" hidden><button class="note-action" id="liveVoicePause" type="button" onclick="pauseLiveVoice()">Pause listening</button><button class="note-action" id="liveVoiceInterrupt" type="button" onclick="interruptLiveVoice()"><i data-lucide="hand"></i>Interrupt / speak now</button><button class="note-action" id="liveVoiceSend" type="button" onclick="sendLiveVoiceNow()"><i data-lucide="send"></i>Send now</button><button class="note-action" id="liveVoiceRepeat" type="button" onclick="repeatLiveQuestion()"><i data-lucide="repeat-2"></i>Repeat question</button></div>
+<details class="voice-interrupt-option" id="autoInterruptOption" hidden><summary>Automatic interruption · experimental</summary><label><input id="autoInterruptToggle" type="checkbox" onchange="setAutoInterrupt(this.checked)"/> Stop Samra when I speak</label><p>Off by default. Try with headphones; speaker echo or background sounds can trigger it. The Interrupt button is always available during playback.</p></details>
+</section>
 <section id="receptionProcess" class="reception-process" aria-label="Voice agent process"></section><div class="demo-transcript" id="demoTranscript">
 <div class="live-empty">Choose a scenario on the left, then start a live interactive demo.</div>
 </div>
@@ -197,6 +204,6 @@
 </main>
 </div>
 <div class="toast" id="toast"></div>
-<script src="/assets/voice-meter.js?v=20261007-short-replies"></script><script src="/receptionist-static/app.js?v=20261007-short-replies"></script>
-<script src="/assets/vendor/lucide.min.js"></script><script src="/receptionist-static/studio.js?v=20261007-short-replies"></script><script src="/receptionist-static/process.js?v=20261007-short-replies"></script><script src="/assets/icons.js?v=20261007-short-replies"></script></body>
+<script src="/receptionist-static/voice-engine.js?v=20261007-hands-free"></script><script src="/assets/voice-meter.js?v=20261007-hands-free"></script><script src="/receptionist-static/app.js?v=20261007-hands-free"></script>
+<script src="/assets/vendor/lucide.min.js"></script><script src="/receptionist-static/studio.js?v=20261007-hands-free"></script><script src="/receptionist-static/process.js?v=20261007-hands-free"></script><script src="/receptionist-static/live-conversation.js?v=20261007-hands-free"></script><script src="/assets/icons.js?v=20261007-hands-free"></script></body>
 </html>

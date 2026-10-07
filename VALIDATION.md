@@ -47,3 +47,15 @@ QA audio is a generated tone and STT/TTS outputs are synthetic. Real provider ke
 - Chromium submitted a brief real WAV capture with synthetic Urdu transcription, then completed short history/complaint replies and a repeated department answer. It checked actual doctor choices in the response/UI/TTS request, the earliest-opening badge, selection by exact practitioner ID, no browser errors, and 1440/1280/390 layouts.
 - Re-ran the connected reception recovery browser journey: signed-in doctor default, receipt, pending queue, wrong-account explanation, editable prompt echo and continuation of a saved intake without a duplicate patient.
 - Full discovery: 150 results, 147 passes, zero assertion failures and the same three native PortAudio import blocks. Physical microphone, live provider recognition accuracy and real telephone transport remain unmeasured.
+
+
+## Optional hands-free conversation regression
+
+- Local JavaScript endpointing/controller suite: **18 passed**, covering bounded silence/background buffers, 80 ms answers, internal number pauses, impulse/DC rejection, explicit send, recording caps, playback gating, sustained experimental interruption, muted pause, review, stale asynchronous work, pending-audio invalidation and late microphone permission cleanup.
+- Existing Python recovery/booking/process modules: **28 passed**. No backend booking or provider adapter is replaced by the feature.
+- New reproducible Chromium journey exercises real AudioWorklet capture, WAV upload, existing STT/extraction/TTS routes, all new-patient booking fields, explicit final confirmation, real slot selection, exact doctor and stored handoff. It also covers manual Mic/Stop, switching with history preservation, Pause/Resume, explicit interruption and playback settlement, synthetic playback-signal gating, opt-in automatic interruption, editable prompt echoes, provider failures, Send now, stopping during delayed STT, wrong-session response rejection, microphone permission recovery, navigation/offline muting, saved on/off preferences and no automatic microphone activation after reload.
+- Browser audio and provider results are synthetic. Signal gating checks do not establish physical speaker echo cancellation or actual Urdu recognition accuracy. Real Android hardware and live providers remain unmeasured. The historical full Python discovery above still has three native PortAudio import blocks.
+
+- Re-ran existing short-reply/doctor-choice and reception-recovery browser journeys: actual doctor selection, pending requests, account-scoped handoff notices and saved-intake continuation passed.
+
+- Additional Chromium checks passed for the older-browser capture fallback, TTS failure recovery, context suspension, background-page muting and microphone disconnection/reconnect. Hands-free uses a non-sticky text composer so it cannot cover the live controls.
