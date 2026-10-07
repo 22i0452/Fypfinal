@@ -1,1 +1,2 @@
 - [Python dependency installs](python-runtime.md) — use a managed Python runtime when the base Nix Python lacks pip or rejects package writes.
+- [Preview route precedence](artifact-routing.md) — specific artifact paths such as `/api` can shadow a root web service and route requests to the wrong backend.
