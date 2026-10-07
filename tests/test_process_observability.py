@@ -80,6 +80,11 @@ class ProcessObservabilityTests(unittest.TestCase):
         self.assertEqual(response.status_code,200,response.text)
         revised=response.json();self.assertEqual(revised['note_id'],note_id);self.assertEqual(revised['version'],old['version']+1)
         self.assertEqual(revised['transcript'][0]['speaker'],'Attendant')
+        report=revised['soap']['evidence_report']
+        self.assertEqual(report['version'],revised['version'])
+        self.assertEqual(report['state'],'AI_DRAFT')
+        self.assertIsNone(report['approval'])
+        self.assertTrue(all(source['speaker']=='ATTENDANT' for row in report['claims'] for source in row['sources'] if source['utterance_id']==turn))
         self.assertNotEqual(self.c.note_repository.get_version(self.c.note_repository.get(note_id).current_version_id).transcript_id,old_transcript)
         self.assertEqual(self.c.transcript_repository.get(old_transcript).utterances[0].speaker.value.upper(),old['transcript'][0]['speaker'].upper())
         stale=self.client.post('/api/notes/'+note_id+'/correct-roles',json={'expected_version':old['version'],'corrections':[{'utterance_id':turn,'speaker':'PATIENT'}]})

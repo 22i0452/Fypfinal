@@ -252,7 +252,10 @@ async def consultation_websocket(websocket: WebSocket):
             claims = [claim for key in ("subjective", "objective", "assessment", "plan") for claim in getattr(draft.version.soap, key)]
             if any(ref not in valid_ids for claim in claims for ref in claim.evidence_ids):
                 raise DocumentationError("UNKNOWN_EVIDENCE", "Unknown evidence reference")
-            await trace("validation", "complete", {"known_references":True, "claim_count":len(claims), "linked_claims":sum(bool(item.evidence_ids) for item in claims), "warnings":draft.version.soap.warnings, "missing_information":draft.version.soap.missing_information, "clinician_approval":"Required", "version":draft.version.version_number})
+            from app.services.evidence_checks import note_evidence_report
+            evidence_report = note_evidence_report(draft.version.soap, transcript, state=draft.version.status, version=draft.version.version_number, note_id=draft.note.note_id)
+            draft.legacy_soap["evidence_report"] = evidence_report
+            await trace("validation", "complete", {"evidence_report":evidence_report, "known_references":True, "claim_count":len(claims), "linked_claims":sum(bool(item.evidence_ids) for item in claims), "warnings":draft.version.soap.warnings, "missing_information":draft.version.soap.missing_information, "clinician_approval":"Required", "version":draft.version.version_number})
             audio_metadata = cleanup_audio_session(
                 session,
                 patient_ref=patient_id,

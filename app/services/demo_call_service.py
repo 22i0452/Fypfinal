@@ -247,6 +247,8 @@ class DemoCallService:
         interpretation = {key: str(interpretation.get(key) or "")[:800] for key in ("ur", "en")}
         review = extracted.get("needs_review") is True
         if review:
+            flow.evidence_turn += 1
+            flow.last_answer = {"source_turn_id": f"R{flow.evidence_turn:04d}", "raw": clean, "status": "review", "method": extracted.get("_process_metadata") or {}, "checks": [{"code":"interpretation_review", "label":"Interpretation", "status":"review", "detail":"Answer held for correction. Accepted fields were not changed."}]}
             urdu, english = "اس جواب کا ایک حصہ واضح نہیں۔ براہ کرم اسے درست کریں یا دوبارہ بتائیں۔", "Part of that answer is uncertain. Edit it or say it again; your collected details are retained."
         else:
             urdu, english = flow.handle(clean, extracted, today=today)
@@ -255,6 +257,10 @@ class DemoCallService:
                 matched = next((row for row in choices if row["practitioner_id"] == selected.get("practitioner_id") and row["display_name"] == flow.values["doctor"]["en"]), None)
                 if matched:
                     flow.values["doctor"]["practitioner_id"] = matched["practitioner_id"]
+                    if "doctor" in flow.field_evidence:
+                        proof = flow.field_evidence["doctor"]
+                        proof["interpretation"]["practitioner_id"] = matched["practitioner_id"]
+                        proof["checks"].append({"code":"doctor_profile", "label":"Doctor profile", "status":"passed", "detail":"Selection matched the current active department catalog by exact practitioner ID."})
         if flow.current == "doctor" and flow.step == "collect":
             choices = choices or self._doctor_choices(flow, preferred_practitioner_id)
             if choices:
@@ -433,6 +439,7 @@ class DemoCallService:
             "saved": False,
             "confirmed": flow.done,
             "details": flow.details(),
+            "field_evidence": flow.field_evidence,
             "missing": [SLOT_BY_KEY[key].label_en for key in _INTAKE_KEYS if key not in flow.values],
         }
         if result["missing"] or not flow.done:

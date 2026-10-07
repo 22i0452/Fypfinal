@@ -59,3 +59,23 @@ QA audio is a generated tone and STT/TTS outputs are synthetic. Real provider ke
 - Re-ran existing short-reply/doctor-choice and reception-recovery browser journeys: actual doctor selection, pending requests, account-scoped handoff notices and saved-intake continuation passed.
 
 - Additional Chromium checks passed for the older-browser capture fallback, TTS failure recovery, context suspension, background-page muting and microphone disconnection/reconnect. Hands-free uses a non-sticky text composer so it cannot cover the live controls.
+
+
+## Evidence visualization refinement (7 October 2026)
+
+Final results: full discovery **158 results, 155 passed, 3 PortAudio import errors, zero assertion failures**; targeted backend group **61 passed**; shared evidence UI plus voice-controller tests **22 passed**. Both complete Chromium browser journeys passed with no page errors. Compilation, JavaScript syntax and whitespace checks passed.
+
+New backend regressions exercise separate original/confirmation IDs, early-answer provenance, correction revisions, removal of stale receipts, history restoration, invalid-value rejection, unavailable legacy provenance, exact text vs paraphrase, unknown/absent references, unsupported statements, unmeasured confidence, actual approval versions and amendment source clearing. Existing role-correction tests also check the revised evidence report and speaker source. The browser shared-library tests exercise HTML escaping, exact-only marks, overlapping spans and unavailable status handling.
+
+Reproducible commands (Python app dependencies and Playwright/Chromium required):
+
+```sh
+python -m unittest tests.test_evidence_checks tests.test_process_observability tests.test_note_lifecycle tests.test_booking_flow tests.test_reception_recovery tests.test_demo_call_finish -q
+node --test tests/test_evidence_ui.cjs tests/test_voice_engine.cjs
+QA_CHROMIUM_PATH=/path/to/chromium node tests/test_evidence_browser.cjs
+QA_CHROMIUM_PATH=/path/to/chromium node tests/test_hands_free_browser.cjs
+```
+
+`tests/evidence_fixture.py` and the existing hands-free fixture use temporary databases and synthetic providers, never real patient records or audio. Audit endpoints exist only in those test fixtures. The clinical browser test covers real verification, booking, consent, WebSocket capture, reload during processing, statement/turn/capture inspectors, source navigation, filters, three modal widths (1440/1280/390), cancelled and saved edits, fresh report/version, approval, summary, completion, archive continuity, stale-patient events, manual saved-handoff IDs, same-appointment verification, disconnect/reconnect and failure recovery. The hands-free test additionally checks field receipts, separate confirmation IDs and microphone muting while inspecting, then resumes the real synthetic booking and existing recovery checks.
+
+Synthetic QA establishes workflow wiring and evidence scope, not physical microphone quality, live Urdu speech accuracy, acoustic diarization, clinical correctness or calibrated confidence. The full Python discovery remains blocked in three legacy receptionist audio modules by missing native PortAudio; these import errors must not be described as a fully passing suite.

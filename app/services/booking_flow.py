@@ -206,6 +206,10 @@ class BookingFlow:
         # Half of a requested time ("kal" without an hour) waits for the other half.
         self.partial_time: dict[str, str] = dict(state.get("partial_time") or {})
         self.doctor_options: list[dict[str, Any]] = list(state.get("doctor_options") or [])
+        self.field_evidence = dict(state.get("field_evidence") or {})
+        self.last_answer = dict(state.get("last_answer") or {})
+        self.evidence_turn = int(state.get("evidence_turn") or 0)
+        self._field_outcomes = {}
         self._today = date.today()
         self._caller_text = ""
 
@@ -232,6 +236,9 @@ class BookingFlow:
             "token": self.token,
             "partial_time": self.partial_time,
             "doctor_options": self.doctor_options,
+            "field_evidence": self.field_evidence,
+            "last_answer": self.last_answer,
+            "evidence_turn": self.evidence_turn,
         }
         return {"role": "system", "content": STATE_TAG + json.dumps(state, ensure_ascii=False)}
 
@@ -242,6 +249,7 @@ class BookingFlow:
     def process_state(self) -> dict[str, Any]:
         return {"step":self.step, "current_field":self.current, "values":self.values,
                 "pending":self.pending, "confirmed":self.done, "saved":False,
+                "field_evidence":self.field_evidence, "last_answer":self.last_answer,
                 "missing":[slot.key for slot in SLOTS if slot.key not in self.values]}
 
     def details(self) -> list[dict[str, str]]:
@@ -305,6 +313,17 @@ class BookingFlow:
 
     # ── dialogue ─────────────────────────────────────────────────────────
     def handle(
+        self, caller_text: str, extraction: dict[str, Any] | None, today: date | None = None
+    ) -> tuple[str, str]:
+        from app.services.booking_evidence import before_transition, record_transition
+        before = before_transition(self)
+        self.evidence_turn += 1
+        self._field_outcomes = {}
+        reply = self._handle(caller_text, extraction, today=today)
+        record_transition(self, before, extraction if isinstance(extraction, dict) else {})
+        return reply
+
+    def _handle(
         self, caller_text: str, extraction: dict[str, Any] | None, today: date | None = None
     ) -> tuple[str, str]:
         self._today = today or date.today()
@@ -564,9 +583,9 @@ class BookingFlow:
                 result[key] = self._resolve_time(self._time_sources(ur, en), value.get("iso"))
                 continue
             checked = self._validate(key, ur or en, en or ur)
-            if checked is not None:
-                result[key] = checked
-        return result
+            result[key] = checked
+        self._field_outcomes = dict(result)
+        return {key: value for key, value in result.items() if value is not None}
 
     def _time_sources(self, ur: str, en: str) -> list[str]:
         # The caller's own words beat the LLM's translation (which turned

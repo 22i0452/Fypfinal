@@ -1838,6 +1838,8 @@ async function saveSoapDraft() {
     soapLastSavedNoteId = payload.note_id || "";
     currentNoteVersion = payload.version || currentNoteVersion;
     generatedNoteState = payload.state || generatedNoteState || "AI_DRAFT";
+    // Saved edits get fresh claim IDs/source checks from the server's new version.
+    generatedSoap = normalizeSoapDraft(payload.soap || generatedSoap);
     soapDraftTouched = false;
     soapSectionEditing = {};
     soapSectionSnapshots = {};

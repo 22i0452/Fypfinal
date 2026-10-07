@@ -38,7 +38,33 @@ let server,browser;
  }
  // Real complete booking, using synthetic STT text through the existing server route.
  const answers=['Ahmed Khan','جی','22','جی','03000000567','جی','جی','none','بخار','general medicine','1'];
- for(const answer of answers)await voice(answer,answer==='جی'?100:180);
+ for(const [index,answer] of answers.entries()){
+   await voice(answer,answer==='جی'?100:180);
+   if(index===0){
+     await p.getByRole('button',{name:'Inspect Name evidence',exact:true}).click();
+     assert.equal(await p.evaluate(()=>liveConversation.controller.paused),true);
+     assert.equal(await p.evaluate(()=>qaSignal.stream.getTracks()[0].enabled),false);
+     assert.ok((await p.locator('#evidenceDialog').innerText()).includes('Ahmed Khan'));
+     await p.locator('#evidenceDialog [data-evidence-close]').click();
+     await p.locator('#liveVoicePause').click();
+   }
+   if(index===1){
+     await p.getByRole('button',{name:'Inspect Name evidence',exact:true}).click();
+     assert.ok((await p.locator('#evidenceDialog').innerText()).includes('Patient confirmed'));
+     await p.locator('#evidenceDialog .evidence-technical summary').click();
+     assert.ok((await p.locator('#evidenceDialog').innerText()).includes('R0001'));
+     assert.ok((await p.locator('#evidenceDialog').innerText()).includes('R0002'));
+     for(const width of [1440,1280,390]){
+       await p.setViewportSize({width,height:900});
+       assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth),width);
+       assert.equal(await p.locator('#evidenceDialog').evaluate(x=>x.scrollWidth<=x.clientWidth),true);
+     }
+     await p.setViewportSize({width:1440,height:900});
+     await p.locator('#evidenceDialog [data-evidence-close]').click();
+     await p.locator('#liveVoicePause').click();
+   }
+ }
+ console.log('Reception evidence: raw answer, separate confirmation IDs, muted inspection and responsive modal passed.');
  assert.equal(await p.evaluate(()=>agentArtifact.current_field),'time');
  const practitioner=await p.evaluate(()=>agentArtifact.values.doctor.practitioner_id);
  const availability=await p.request.get(base+'/api/desk/availability',{params:{practitioner_id:practitioner,visit_type_id:'VISIT-NEW'}});

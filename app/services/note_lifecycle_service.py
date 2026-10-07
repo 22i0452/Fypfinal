@@ -219,6 +219,8 @@ class NoteLifecycleService:
     def payload(self, note: SOAPNote, version: SOAPNoteVersion, *, patient_name: str = "") -> dict[str, Any]:
         transcript = self.transcripts.get(version.transcript_id) if version.transcript_id else None
         legacy = DocumentationService.legacy_soap(version.soap)
+        from app.services.evidence_checks import note_evidence_report
+        report = note_evidence_report(version.soap, transcript, state=version.status, version=version.version_number, note_id=note.note_id, approval={"doctor_id": note.approved_by_doctor_id, "approved_at": note.approved_at.isoformat() if note.approved_at else None} if version.status == NoteStatus.APPROVED_BY_DOCTOR else None)
         return {
             "note_id": note.note_id,
             "patient_id": note.patient_id,
@@ -241,6 +243,7 @@ class NoteLifecycleService:
                 "structured_soap": version.soap.model_dump(mode="json"),
                 "evidence": [item.model_dump(mode="json") for item in version.evidence],
                 "generated_by": "AI Medical Scribe",
+                "evidence_report": report,
             },
             "transcript": [DocumentationService.utterance_payload(item, translated=True) for item in transcript.utterances]
             if transcript

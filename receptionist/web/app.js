@@ -393,7 +393,7 @@ function appendDemoLine(role, text) {
     if (!body) body = escapeHtml(text);
     bubble.innerHTML = `<span class="meta">${meta}</span>${body}`;
   } else {
-    bubble.innerHTML = `<span class="meta">${meta}</span>${escapeHtml(text)}`;
+    bubble.innerHTML = `<span class="meta">${meta}</span><p class="caller-words" dir="auto">${escapeHtml(text)}</p>`;
   }
   thread.appendChild(bubble);
   thread.scrollTop = thread.scrollHeight;
