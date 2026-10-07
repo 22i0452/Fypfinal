@@ -19,8 +19,12 @@ def _authenticated(request: Request) -> bool:
 
 @router.get("/")
 async def root(request: Request):
-    destination = "/workspace" if _authenticated(request) else "/consultation/login"
-    return RedirectResponse(destination, status_code=302)
+    return FileResponse(MODULE2_DIR / "home.html", media_type="text/html")
+
+
+@router.get('/home')
+async def home():
+    return FileResponse(MODULE2_DIR / 'home.html',media_type='text/html')
 
 
 @router.get("/consultation")

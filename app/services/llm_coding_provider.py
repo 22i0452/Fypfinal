@@ -1,7 +1,8 @@
-"""LLM-backed ICD-10 and CPT suggestion provider for approved SOAP drafts."""
+"""Model code candidates from saved SOAP claims; catalog validity is unassessed."""
 from __future__ import annotations
 
 import re
+import math
 from typing import Any
 
 from app.services.coding_service import CodingCandidate, CodingServiceError
@@ -24,10 +25,14 @@ RULES
 - ICD-10 codes must be diagnosis/symptom codes supported by Subjective/Assessment.
 - CPT codes must reflect documented evaluation/management or procedures supported
   by Plan/Objective (for example outpatient visit E&M, wound care, imaging order
-  only if clearly performed/documented — prefer visit-level E&M when uncertain).
+  only if clearly performed/documented). Do not default to an E&M code when
+  patient status, time or medical decision-making detail is insufficient.
 - Every suggestion MUST cite one or more claim_id values from the provided claim list.
 - Do not invent unsupported diagnoses or procedures.
-- Return 1-4 ICD-10 codes and 1-3 CPT codes.
+- Return 0-4 ICD-10 codes and 0-3 CPT codes. Empty categories are valid.
+- Do not turn a symptom into a confirmed diagnosis or an order into a performed procedure.
+- Missing-documentation placeholders cannot support a code.
+- Code catalog validity and clinical correctness require separate human verification.
 - confidence is 0.0-1.0.
 - Return only JSON:
 {
@@ -87,12 +92,9 @@ class LLMCodingProvider:
                 max_tokens=2048,
             )
             candidates = self._parse_suggestions(parsed, {row["claim_id"] for row in claims})
-            if candidates:
-                return candidates
+            return candidates
         except Exception as exc:
-            print(f"[LLMCodingProvider] LLM coding failed: {exc}")
-
-        return self._fallback_candidates(version, claims)
+            raise CodingServiceError("CODING_UNAVAILABLE", "The coding provider could not complete this request. Saved suggestions are preserved; retry generation.") from exc
 
     def _parse_suggestions(self, parsed: dict[str, Any], valid_ids: set[str]) -> list[CodingCandidate]:
         rows = parsed.get("suggestions")
@@ -105,79 +107,35 @@ class LLMCodingProvider:
             system = str(row.get("system") or "").strip().upper()
             if system in {"ICD10", "ICD-10-CM", "ICD10CM"}:
                 system = "ICD-10"
-            if system in {"CPT4", "HCPCS"}:
+            if system in {"CPT4"}:
                 system = "CPT"
             if system not in {"ICD-10", "CPT"}:
                 continue
             code = str(row.get("code") or "").strip().upper()
             description = str(row.get("description") or "").strip()
-            evidence_ids = [
-                str(item).strip()
-                for item in (row.get("evidence_ids") or [])
-                if str(item).strip() in valid_ids
-            ]
+            raw_ids = row.get("evidence_ids")
+            if not isinstance(raw_ids,list) or any(not isinstance(item,str) or item.strip() not in valid_ids for item in raw_ids):
+                continue
+            evidence_ids = list(dict.fromkeys(item.strip() for item in raw_ids))
             if not code or not description or not evidence_ids:
                 continue
             try:
-                confidence = float(row.get("confidence", 0.7))
+                confidence = float(row['confidence']) if row.get('confidence') is not None else None
+                if confidence is not None and not math.isfinite(confidence):
+                    continue
             except (TypeError, ValueError):
-                confidence = 0.7
+                continue
             candidates.append(
                 CodingCandidate(
                     system=system,
                     code=code,
                     description=description,
-                    confidence=max(0.0, min(confidence, 1.0)),
+                    confidence=max(0.0, min(confidence, 1.0)) if confidence is not None else None,
+                    method="LLM_CANDIDATE",
                     evidence_ids=evidence_ids,
                 )
             )
         return candidates
-
-    def _fallback_candidates(
-        self,
-        version: SOAPNoteVersion,
-        claims: list[dict[str, str]],
-    ) -> list[CodingCandidate]:
-        text = self._soap_summary(version).lower()
-        assessment_ids = [c["claim_id"] for c in claims if c["section"] == "assessment"]
-        plan_ids = [c["claim_id"] for c in claims if c["section"] == "plan"]
-        subjective_ids = [c["claim_id"] for c in claims if c["section"] == "subjective"]
-        dx_evidence = assessment_ids or subjective_ids or [claims[0]["claim_id"]]
-        px_evidence = plan_ids or assessment_ids or [claims[0]["claim_id"]]
-
-        icd_code, icd_desc = "R52", "Pain, unspecified"
-        if any(token in text for token in ("knee", "گھٹن", "patella", "s83")):
-            icd_code, icd_desc = "S83.90XA", "Sprain of unspecified site of unspecified knee, initial encounter"
-        elif any(token in text for token in ("back", "کمر", "lumbar", "m54.5")):
-            icd_code, icd_desc = "M54.5", "Low back pain"
-        elif any(token in text for token in ("fever", "بخار", "r50")):
-            icd_code, icd_desc = "R50.9", "Fever, unspecified"
-        elif any(token in text for token in ("cough", "کھانس")):
-            icd_code, icd_desc = "R05.9", "Cough, unspecified"
-
-        cpt_code, cpt_desc = "99213", "Office/outpatient visit, established patient, low complexity"
-        if any(token in text for token in ("new patient", "first visit", "new visit")):
-            cpt_code, cpt_desc = "99203", "Office/outpatient visit, new patient, low complexity"
-        if any(token in text for token in ("x-ray", "xray", "radiograph")):
-            # Keep visit E&M as primary CPT; imaging only when clearly relevant.
-            pass
-
-        return [
-            CodingCandidate(
-                system="ICD-10",
-                code=icd_code,
-                description=icd_desc,
-                confidence=0.62,
-                evidence_ids=dx_evidence[:2],
-            ),
-            CodingCandidate(
-                system="CPT",
-                code=cpt_code,
-                description=cpt_desc,
-                confidence=0.6,
-                evidence_ids=px_evidence[:2],
-            ),
-        ]
 
     @staticmethod
     def _claim_rows(version: SOAPNoteVersion) -> list[dict[str, str]]:

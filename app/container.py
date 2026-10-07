@@ -194,6 +194,7 @@ class ApplicationContainer:
             suggestions=self.code_suggestion_repository,
             audit=self.audit_service,
             provider=coding_provider,
+            transcripts=self.transcript_repository,
         )
         self.consultation_review = ConsultationReviewService(self)
 

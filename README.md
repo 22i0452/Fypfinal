@@ -1,5 +1,7 @@
 # MedFlowAI — Clinic Agent Platform
 
+**Connected product (Batches 2–4):** the public home at `/` opens AI Receptionist and Doctor Workspace. Saved SOAP has a visible **ICD-10 / CPT** action; code suggestions link to their exact SOAP version and original conversation. Patient Portal is marked **Coming soon**. See [PROCESS_STUDIO.md](PROCESS_STUDIO.md) and [VALIDATION.md](VALIDATION.md) for setup and measured checks.
+
 **Process and voice refinement:** see [PROCESS_STUDIO.md](PROCESS_STUDIO.md) for separate agent workspaces, actual stage events, source inspection, role correction, voice recovery and Replit update instructions.
 
 **Refined web workspace:** see [REFINEMENT.md](REFINEMENT.md) for the new clinical studio, guided encounter flow, recovery changes, and validation.
@@ -332,7 +334,7 @@ python web_server.py
 python scribe/soap_server.py
 ```
 
-Open the doctor workspace in a browser:
+Open the product home in a browser:
 
 ```text
 http://127.0.0.1:8000
@@ -393,7 +395,7 @@ A fuller walkthrough lives in [`docs/demo/clinic-agent-demo-script.md`](docs/dem
 
 ```text
 Terminal 1:  python -m uvicorn app.main:app --reload
-Browser:     http://127.0.0.1:8000  (doctor login + Module 2 / scribe workspace)
+Browser:     http://127.0.0.1:8000  (product home; doctor workspace at /workspace)
 Terminal 2:  python main.py         (Module 1 AI Receptionist)
 ```
 

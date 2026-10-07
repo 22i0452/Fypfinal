@@ -77,6 +77,10 @@ class PreConsolidationRegressionTests(unittest.TestCase):
                 )
                 response = client.get("/")
                 self.assertEqual(response.status_code, 200)
+                self.assertIn('href="/workspace"',response.text)
+                self.assertIn('Patient Portal',response.text)
+                response = client.get('/workspace')
+                self.assertEqual(response.status_code,200)
                 self.assertIn("Clinical Notes Workspace", response.text)
                 with client.websocket_connect("/ws") as websocket:
                     websocket.send_text(json.dumps({"type": "ping"}))

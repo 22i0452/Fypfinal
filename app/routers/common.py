@@ -43,6 +43,7 @@ def service_http_error(error: Exception, *, default_status: int = status.HTTP_40
         "LLM_NOT_CONFIGURED",
         "LLM_ERROR",
         "STT_FAILED",
+        "CODING_UNAVAILABLE",
         "SOAP_FAILED",
         "TRANSLATION_FAILED",
     }:

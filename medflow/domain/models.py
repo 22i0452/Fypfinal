@@ -279,8 +279,10 @@ class CodeSuggestion(DomainModel):
     system: str = "ICD-10"
     code: str
     description: str
-    confidence: float = Field(ge=0, le=1)
+    confidence: float | None = Field(default=None, ge=0, le=1)
     evidence_ids: list[str] = Field(min_length=1)
+    generation_method: str = "LEGACY_UNSPECIFIED"
+    generation_duration_ms: float | None = Field(default=None, ge=0)
     status: CodeSuggestionStatus = CodeSuggestionStatus.SUGGESTED
     reviewed_by_actor_id: str | None = None
     reviewed_at: datetime | None = None

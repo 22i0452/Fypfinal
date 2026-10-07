@@ -104,3 +104,21 @@ QA_CHROMIUM_PATH=/path/to/chromium node tests/test_hands_free_browser.cjs
 ```
 
 Each browser script uses temporary synthetic records/providers. Guided/evidence scripts use localhost:8765 and must run sequentially; hands-free uses localhost:8766. Browser delay/failure controls exist only in the test fixture. No production delays, fabricated confidence or streaming captions were introduced. Live Urdu accuracy, physical microphones, actual paid-provider timings and clinical correctness remain unmeasured.
+
+
+## Coding source chain and connected product — Batches 2–4 (7 October 2026)
+
+Latest Python discovery: **179 results, 176 passed, three existing PortAudio import errors, zero assertion failures**. The three unavailable receptionist audio modules are listed above; discovery is not fully passing. The targeted coding/guided/backend group passed **31 tests** and evidence/voice Node tests passed **22 tests**. Compilation, changed JavaScript syntax and whitespace checks passed. TTS startup warmup was suppressed for discovery; provider responses remained synthetic.
+
+Eleven new Python checks cover exact saved source chains, optional absent scores, current-version generation versus read-only history, stale review rejection, provider/partial-validation failure preserving pending results, late provider responses after note edits, reviewed-code deduplication, feature-off stored evidence, cross-patient authorization, missing transcripts, invalid reference rejection, serialized concurrent generation, unsupported provider systems and public-home/private-workspace routing.
+
+Four completed Chromium journeys passed with zero page JavaScript errors: the new combined product journey plus guided consultation, existing clinical/evidence and hands-free reception regressions. Product QA covered public home/authenticated entrances, noninteractive Coming soon portal, SOAP coding disabled/dirty/error/retry states, current code approval, exact statement/source navigation, SOAP edits with immutable stale history, original workflow/encounter completion, and Home navigation with unsaved intake protection. Home, coding results and the source dialog fit 1440/1280/390 pixel widths without horizontal overflow. The other journeys preserve their existing recording, consent, booking, correction, handoff and recovery checks.
+
+Reproduce new checks with app dependencies plus Playwright/Chromium:
+
+```sh
+python -m unittest tests.test_product_coding -q
+QA_CHROMIUM_PATH=/path/to/chromium node tests/test_product_browser.cjs
+```
+
+The product browser fixture uses a temporary database and explicitly synthetic code candidates. Its provider delay/failure/feature controls exist only in tests. It shares localhost:8765 with guided/evidence tests, so run those sequentially. These checks establish workflow and source integrity; they do not measure live ASR, physical microphone quality, paid-provider speed, clinical or coding accuracy, calibrated confidence or catalog validity. Batch 5's user-facing repeatable demo report is not included.
