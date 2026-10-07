@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "MedFlow Clinical Studio"
+description = "Existing FastAPI clinical studio and receptionist interface, served directly from the project root."
+version = "1.0.0"
+id = "artifacts/medflow-clinical-studio"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25757
+
+[services.development]
+run = "pnpm --filter @workspace/medflow-clinical-studio run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/medflow-clinical-studio", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/medflow-clinical-studio/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25757"
+BASE_PATH = "/"
