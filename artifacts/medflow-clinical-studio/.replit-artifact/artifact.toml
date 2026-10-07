@@ -12,7 +12,7 @@ paths = [ "/" ]
 localPort = 8000
 
 [services.development]
-run = "python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
+run = "cd ../.. && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
 [services.production]
 build = [ "pnpm", "--filter", "@workspace/medflow-clinical-studio", "run", "build" ]

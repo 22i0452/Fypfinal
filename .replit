@@ -18,7 +18,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Run MedFlow"
+args = "artifacts/medflow-clinical-studio: web"
 
 [[workflows.workflow]]
 name = "Run MedFlow"
