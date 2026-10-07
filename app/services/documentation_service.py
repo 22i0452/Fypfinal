@@ -312,37 +312,31 @@ class DocumentationService:
         if unknown:
             raise DocumentationError("UNKNOWN_EVIDENCE", "SOAP draft referenced unknown transcript evidence")
         evidence_ids = list(dict.fromkeys(requested_ids))
-        evidence_status = (
-            ClaimSupportStatus.SUPPORTED
-            if evidence_ids
-            else ClaimSupportStatus.REVIEW_REQUIRED
-        )
         generation_mode = str(soap.get("generation_mode") or "MODEL_VALIDATED")
+        attribution = soap.get("claim_sources") or {}
+        attribution_issues = []
 
         def claim(section: str) -> list[ClinicalClaim]:
             text = str(soap.get(section) or "Not documented.").strip()
-            lowered = text.lower()
-            requires_review = (
-                generation_mode == "TRANSCRIPT_FALLBACK"
-                or "not documented" in lowered
-                or "requires review" in lowered
-                or "was removed" in lowered
-                or (section == "assessment" and has_ai_differential_label(text))
-                or (section == "plan" and has_ai_management_label(text))
-            )
-            return [
-                ClinicalClaim(
-                    claim_id=f"{note_id}-{section.upper()}-001",
-                    text=text,
-                    evidence_ids=evidence_ids,
-                    status=(
-                        ClaimSupportStatus.REVIEW_REQUIRED
-                        if requires_review
-                        else evidence_status
-                    ),
-                )
-            ]
+            parts = attribution.get(section) or []
+            normalize = lambda value: " ".join(str(value).split())
+            # Discard mappings if sanitization changed the narrative or a provider omitted spans.
+            mapped = bool(parts) and normalize(" ".join(str(item.get("text") or "") for item in parts)) == normalize(text)
+            if not mapped:
+                parts = [{"text":text, "evidence_ids":[]}]
+                attribution_issues.append(section.title())
+            claims = []
+            for index, item in enumerate(parts, 1):
+                content = str(item.get("text") or "").strip()
+                refs = list(dict.fromkeys(str(ref) for ref in item.get("evidence_ids", [])))
+                if set(refs) - valid_ids:
+                    raise DocumentationError("UNKNOWN_EVIDENCE", "Claim referenced unknown transcript evidence")
+                # A model-provided source link is an attribution, not semantic proof.
+                claims.append(ClinicalClaim(claim_id=f"{note_id}-{section.upper()}-{index:03d}", text=content,
+                    evidence_ids=refs, status=ClaimSupportStatus.REVIEW_REQUIRED))
+            return claims
 
+        section_claims = {section:claim(section) for section in ("subjective", "objective", "assessment", "plan")}
         issues = [str(item) for item in soap.get("validation_issues", [])]
         review_flags = [str(item) for item in soap.get("review_flags", [])]
         warning_codes = list(dict.fromkeys([*review_flags, *issues]))
@@ -362,15 +356,15 @@ class DocumentationService:
             )
         ]
         return StructuredSOAP(
-            subjective=claim("subjective"),
-            objective=claim("objective"),
-            assessment=claim("assessment"),
-            plan=claim("plan"),
+            subjective=section_claims["subjective"],
+            objective=section_claims["objective"],
+            assessment=section_claims["assessment"],
+            plan=section_claims["plan"],
             missing_information=(
                 missing_sections
                 or (["Clinician review is required"] if not evidence_ids else [])
             ),
-            warnings=warnings,
+            warnings=[*warnings, *(["Claim-level sources unavailable for " + ", ".join(attribution_issues) + ". Review the transcript."] if attribution_issues else [])],
         )
 
     @staticmethod

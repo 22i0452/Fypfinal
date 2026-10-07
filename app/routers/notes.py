@@ -224,3 +224,27 @@ async def finalize_note(
             detail={"code": "DOCTOR_APPROVAL_REQUIRED", "message": "Only approved notes can be finalized"},
         )
     return {**_payload(container, note, version), "finalized": True}
+
+
+class RoleCorrection(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    utterance_id: str = Field(min_length=1, max_length=64)
+    speaker: str = Field(pattern='^(DOCTOR|PATIENT|NURSE|ATTENDANT|UNKNOWN)$')
+    speaker_relation: str | None = Field(default=None, max_length=40)
+
+
+class RoleRevisionRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    expected_version: int = Field(ge=1)
+    corrections: list[RoleCorrection] = Field(min_length=1, max_length=300)
+
+
+@router.post('/{note_id}/correct-roles')
+async def correct_roles(note_id: str, payload: RoleRevisionRequest, request: Request, user: AuthUser = Depends(get_current_user)):
+    import asyncio
+    from app.services.transcript_revision import revise_roles
+    container = get_container(request)
+    try:
+        return await asyncio.to_thread(revise_roles, container, note_id, actor_for_user(container,user), payload.expected_version, [item.model_dump() for item in payload.corrections])
+    except NoteLifecycleError as exc:
+        raise service_http_error(exc) from exc

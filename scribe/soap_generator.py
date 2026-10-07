@@ -124,6 +124,10 @@ PLAN
 EVIDENCE
 - Each transcript line begins with a server-issued utterance ID such as U1.
 - Include each utterance ID used by the SOAP note once in the evidence array.
+- In claim_sources, split each section into consecutive factual statements. Each text
+  must be an exact span of that section; together the texts must cover the full section.
+  Link only the specific utterance IDs that support that statement. Use [] for missing
+  or intake-only facts. Never attach every transcript ID to every statement.
 - Never create an utterance ID. The quote must be a short exact excerpt from that
   utterance. Intake-only context has no utterance ID.
 
@@ -135,7 +139,8 @@ Return ONLY valid JSON with exactly these keys:
   "plan": "Grounded plan or explicit limitation",
   "visit_date": "YYYY-MM-DD",
   "generated_by": "AI Medical Scribe",
-  "evidence": [{"utterance_id": "U1", "quote": "exact short source excerpt"}]
+  "evidence": [{"utterance_id": "U1", "quote": "exact short source excerpt"}],
+  "claim_sources": {"subjective":[{"text":"Professional grounded narrative","evidence_ids":["U1"]}], "objective":[], "assessment":[], "plan":[]}
 }
 """
 
@@ -580,7 +585,7 @@ class SOAPGenerator:
                     patient_ref=patient_ref,
                     patient_context=patient or {},
                     temperature=0.2,
-                    max_tokens=1800,
+                    max_tokens=3200,
                 )
             except Exception:
                 last_issues = ["provider_error"]

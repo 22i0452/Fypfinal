@@ -13,7 +13,7 @@ const state = {
   liveTimer: null,
   demoDirection: "inbound",
   selectedDemoId: "",
-  demoMode: "chat",
+  demoMode: "voice",
   demoRunning: false,
   demoBusy: false,
   demoHistory: [],
@@ -501,6 +501,7 @@ function stopDemoMicCapture({ finalize = false } = {}) {
   state.demoStream = null;
   state.demoPcmChunks = [];
   state.demoRecording = false;
+  window.MedFlowMeter?.reset("reception");
   const micBtn = document.getElementById("demoMicBtn");
   if (micBtn) micBtn.textContent = "Mic";
   if (ctx) {
@@ -529,6 +530,7 @@ function stopDemoMic() {
   }
   stopDemoMicCapture({ finalize: false });
   state.demoRecording = false;
+  window.MedFlowMeter?.reset("reception");
   const micBtn = document.getElementById("demoMicBtn");
   if (micBtn) micBtn.textContent = "Mic";
 }
@@ -723,7 +725,8 @@ async function playDemoSpeech(speechText, fullReply) {
     stopDemoAudio();
     const audio = new Audio(url);
     state.demoAudio = audio;
-    audio.onended = () => resolve();
+    audio.onplaying = () => window.receptionPhase?.("speaking", "Audio playback active");
+    audio.onended = () => {window.receptionPhase?.("ready", "Your turn");resolve();};
     audio.onerror = () => reject(new Error("Unable to play Samra audio"));
     audio.play().catch(reject);
   });
@@ -756,6 +759,7 @@ async function beginDemoSession({ voice }) {
       body: JSON.stringify({ scenario_id: scenario.id }),
     });
     state.demoHistory = started.history || [];
+    window.receptionArtifact?.(started.process);
     appendDemoLine("agent", started.reply || "");
     if (voice) {
       try {
@@ -809,6 +813,7 @@ async function sendDemoMessage(event) {
       }),
     });
     state.demoHistory = result.history || state.demoHistory;
+    window.receptionArtifact?.(result.process);
     appendDemoLine("agent", result.reply || "");
     if (state.demoMode === "voice") {
       try {
@@ -849,7 +854,10 @@ async function toggleDemoMic() {
       return;
     }
     setDemoComposerEnabled(false);
-    setStatus("Transcribing (Whisper)…");
+    state.demoBusy = true;
+    window.receptionPhase?.("speech", "Transcribing your recorded turn");
+    setStatus("Transcribing speech…");
+    const sttStarted = performance.now();
     try {
       const form = new FormData();
       form.append("audio", wavBlob, "demo-caller.wav");
@@ -858,6 +866,7 @@ async function toggleDemoMic() {
       if (!response.ok) {
         throw new Error(apiMessage(payload, "STT failed"));
       }
+      window.receptionSttResult?.(payload, performance.now()-sttStarted);
       if (payload.garbled) {
         showToast(payload.hint || "Speech unclear — please speak again clearly.", "error");
         setDemoComposerEnabled(true);
@@ -870,10 +879,16 @@ async function toggleDemoMic() {
         return;
       }
       document.getElementById("demoInput").value = text;
+      state.demoBusy = false;
       await sendDemoMessage();
     } catch (error) {
+      window.receptionPhase?.("error", error.message || "Speech transcription failed");
       showToast(error.message || "Mic transcription failed", "error");
       setDemoComposerEnabled(true);
+    } finally {
+      state.demoBusy = false;
+      setDemoComposerEnabled(true);
+      if(!window.receptionIsError?.()) window.receptionPhase?.("ready", "Tap the microphone to reply");
     }
     return;
   }
@@ -882,6 +897,8 @@ async function toggleDemoMic() {
     showToast("Microphone is not available in this browser.", "error");
     return;
   }
+  state.demoBusy = true;
+  setDemoComposerEnabled(false);
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -902,6 +919,7 @@ async function toggleDemoMic() {
     processor.onaudioprocess = (event) => {
       const input = event.inputBuffer.getChannelData(0);
       chunks.push(new Float32Array(input));
+      window.MedFlowMeter?.feed("reception", input);
     };
     source.connect(processor);
     processor.connect(mute);
@@ -914,10 +932,14 @@ async function toggleDemoMic() {
     state.demoPcmChunks = chunks;
     state.demoRecording = true;
     document.getElementById("demoMicBtn").textContent = "Stop";
+    window.receptionPhase?.("listening", "Speak in Urdu, then tap Stop");
     setStatus("Listening… speak clearly in Urdu, then tap Stop");
   } catch (error) {
     stopDemoMicCapture({ finalize: false });
     showToast(error.message || "Unable to access microphone", "error");
+  } finally {
+    state.demoBusy = false;
+    setDemoComposerEnabled(true);
   }
 }
 
@@ -1124,7 +1146,8 @@ function renderLiveCalls() {
   document.getElementById("liveTranscriptTitle").textContent = selected.from_number || "Inbound call";
   document.getElementById("liveTranscriptMeta").textContent = `${selected.status} · to ${
     selected.to_number || state.clinicNumber || "clinic"
-  }${selected.speaking ? " · Samra speaking" : ""}`;
+  }${selected.speaking ? " · Samra speaking" : selected.processing ? " · Processing caller turn" : " · Listening"}`;
+  window.renderPhoneProcess?.(selected);
   const lines = selected.transcript || [];
   if (!lines.length) {
     transcript.innerHTML = `<div class="live-empty">Connected — waiting for first utterance…</div>`;

@@ -16,3 +16,10 @@ scribe/generated_notes/_*/
 scribe/generated_notes/*.json
 scribe/retained_audio/
 patient_records/*.json
+
+# Runtime clinical data and locally generated call audio
+consultation.db*
+*.db-wal
+*.db-shm
+data/call_media/
+node_modules/

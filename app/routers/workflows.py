@@ -60,6 +60,7 @@ def _context_payload(container, workflow, actor) -> dict:
         "encounter": encounter.model_dump(mode="json") if encounter else None,
         "consents": [item.model_dump(mode="json") for item in decisions.values() if item],
         "note": note,
+        "process_trace": container.process_trace.latest(encounter.encounter_id, workflow.patient_id) if encounter else None,
         "coding_enabled": container.settings.icd_coding_enabled,
         "development_quick_start_enabled": container.settings.development_quick_start_available,
     }

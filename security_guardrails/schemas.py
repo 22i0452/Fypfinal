@@ -28,6 +28,12 @@ class EvidenceReference(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class ClaimAttribution(BaseModel):
+    text: str = Field(min_length=1)
+    evidence_ids: list[str] = Field(default_factory=list)
+    model_config = ConfigDict(extra="forbid")
+
+
 class SOAPDraftSchema(BaseModel):
     subjective: str = Field(min_length=1)
     objective: str = Field(min_length=1)
@@ -36,6 +42,7 @@ class SOAPDraftSchema(BaseModel):
     visit_date: str = Field(min_length=4)
     generated_by: str = "AI Medical Scribe"
     evidence: list[EvidenceReference] = Field(default_factory=list)
+    claim_sources: dict[str, list[ClaimAttribution]] = Field(default_factory=dict)
 
     model_config = ConfigDict(extra="forbid")
 

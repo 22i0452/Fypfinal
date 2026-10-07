@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from typing import Any
 
 import numpy as np
@@ -12,6 +13,7 @@ from app.services import ClinicLifecycleError, ConsentError, DocumentationError
 from medflow.domain.ids import new_id
 from medflow.orchestration import WorkflowAction
 from security_guardrails import Actor
+from security_guardrails.telemetry import collect_provider_events
 from security_guardrails.audio_retention import cleanup_audio_session
 
 
@@ -149,13 +151,41 @@ async def consultation_websocket(websocket: WebSocket):
             cleanup_audio_session(session, patient_ref=patient_id, allow_retention=False)
             await send({"type": "error", "code": "AUDIO_EMPTY", "message": "No audio was recorded."})
             return
+        run_id = container.process_trace.start(patient_id, encounter_id, str(session.get("capture_id") or ""))
+        stage = "audio"
+        started = time.perf_counter()
+
+        provider_calls = []
+
+        async def call_provider(function, *args, **kwargs):
+            nonlocal provider_calls
+            with collect_provider_events() as calls:
+                try:
+                    return await asyncio.to_thread(function, *args, **kwargs)
+                finally:
+                    provider_calls = calls
+
+        async def trace(name, status, artifact=None):
+            nonlocal stage, started
+            if status == "running":
+                stage, started = name, time.perf_counter()
+            if status == "running":
+                provider_calls.clear()
+            elif provider_calls:
+                artifact = {**(artifact or {}), "provider_calls":list(provider_calls)}
+            event = container.process_trace.append(run_id, name, status, artifact=artifact, duration_ms=(time.perf_counter()-started)*1000 if status != "running" else None)
+            await send({"type":"process_event", **event})
+
         try:
             container.lifecycle_service.start_documentation(workflow_id, actor=actor)
+            await trace("audio", "running")
             audio = np.concatenate(session["audio_chunks"])
             sample_rate = int(session["input_sample_rate"])
             duration = len(audio) / max(sample_rate, 1)
-            await send({"type": "processing", "message": f"Processing {duration:.1f}s audio..."})
-            transcript_text = await asyncio.to_thread(
+            await trace("audio", "complete", {"seconds":round(duration,2), "sample_rate":sample_rate, "samples":len(audio), "retained":bool(session["audio_retention_consent"])})
+            await trace("speech", "running")
+            await send({"type": "processing", "message": f"Transcribing and cleaning {duration:.1f}s audio..."})
+            transcript_text = await call_provider(
                 container.documentation_service.transcribe,
                 audio,
                 input_sample_rate=sample_rate,
@@ -164,16 +194,19 @@ async def consultation_websocket(websocket: WebSocket):
             if len(transcript_text.strip()) < 10:
                 raise DocumentationError("NO_SPEECH", "No speech was detected in the recording.")
 
+            await trace("speech", "complete", {"text":transcript_text, "language":"Urdu", "mode":"After-stop transcription and cleanup"})
+            await trace("roles", "running")
             patient = session["patient"]
             transcript_id = new_id("TRN")
             await send({"type": "processing", "message": "Identifying speakers (doctor, patient, nurse, attendants)..."})
-            diarized = await asyncio.to_thread(
+            diarized = await call_provider(
                 container.documentation_service.diarize,
                 transcript_text,
                 patient=patient,
                 transcript_id=transcript_id,
             )
             urdu_payload = [container.documentation_service.utterance_payload(item) for item in diarized]
+            await trace("roles", "complete", {"utterances":urdu_payload, "method":"Text-based role attribution", "distinct_voices":None})
             await send(
                 {
                     "type": "transcript_complete",
@@ -182,8 +215,9 @@ async def consultation_websocket(websocket: WebSocket):
                 }
             )
 
+            await trace("translation", "running")
             await send({"type": "processing", "message": "Translating transcript to English..."})
-            translated = await asyncio.to_thread(
+            translated = await call_provider(
                 container.documentation_service.translate,
                 diarized,
                 patient=patient,
@@ -198,10 +232,12 @@ async def consultation_websocket(websocket: WebSocket):
                 container.documentation_service.utterance_payload(item, translated=True)
                 for item in translated
             ]
+            await trace("translation", "complete", {"utterances":english_payload, "paired_ids":[item.utterance_id for item in translated]})
             await send({"type": "translation_complete", "english_conversation": english_payload})
+            await trace("draft", "running")
 
             await send({"type": "processing", "message": "Generating an evidence-linked SOAP draft..."})
-            draft = await asyncio.to_thread(
+            draft = await call_provider(
                 container.documentation_service.generate_draft,
                 workflow_id=workflow_id,
                 patient=patient,
@@ -210,6 +246,13 @@ async def consultation_websocket(websocket: WebSocket):
                 actor=actor,
                 template_id=str(session.get("template_id") or "TPL-GP-01"),
             )
+            await trace("draft", "complete", {"note_id":draft.note.note_id, "generation_mode":draft.legacy_soap.get("generation_mode", "MODEL_VALIDATED"), "soap":container.documentation_service.legacy_soap(draft.version.soap)})
+            await trace("validation", "running")
+            valid_ids = {item.utterance_id for item in translated}
+            claims = [claim for key in ("subjective", "objective", "assessment", "plan") for claim in getattr(draft.version.soap, key)]
+            if any(ref not in valid_ids for claim in claims for ref in claim.evidence_ids):
+                raise DocumentationError("UNKNOWN_EVIDENCE", "Unknown evidence reference")
+            await trace("validation", "complete", {"known_references":True, "claim_count":len(claims), "linked_claims":sum(bool(item.evidence_ids) for item in claims), "warnings":draft.version.soap.warnings, "missing_information":draft.version.soap.missing_information, "clinician_approval":"Required", "version":draft.version.version_number})
             audio_metadata = cleanup_audio_session(
                 session,
                 patient_ref=patient_id,
@@ -226,6 +269,7 @@ async def consultation_websocket(websocket: WebSocket):
                 }
             )
         except Exception as exc:
+            await trace(stage, "failed", {"code":str(getattr(exc,"code","DOCUMENTATION_FAILED")), "message":"Processing interrupted. Retry from this encounter."})
             cleanup_audio_session(session, patient_ref=patient_id, allow_retention=False)
             print(f"[Documentation] failed safely ({type(exc).__name__})")
             try:

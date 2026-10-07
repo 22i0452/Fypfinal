@@ -209,7 +209,8 @@ class ClinicExtensionTests(unittest.TestCase):
             transcript,
         )
         for claims in (valid.subjective, valid.objective, valid.assessment, valid.plan):
-            self.assertEqual(claims[0].evidence_ids, ["U1"])
+            self.assertEqual(claims[0].evidence_ids, [])
+            self.assertEqual(claims[0].status, ClaimSupportStatus.REVIEW_REQUIRED)
         with self.assertRaisesRegex(Exception, "unknown transcript evidence"):
             self.container.documentation_service.build_structured_soap(
                 "NOTE-SYN-BAD-EVIDENCE",

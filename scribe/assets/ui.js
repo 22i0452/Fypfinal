@@ -1372,6 +1372,7 @@ async function startRecording() {
   scriptProcessor.onaudioprocess = (event) => {
     if (!isRecording || !ws || ws.readyState !== WebSocket.OPEN) return;
     const float32 = event.inputBuffer.getChannelData(0);
+    window.MedFlowMeter?.feed("consult", float32);
     const int16 = new Int16Array(float32.length);
     for (let index = 0; index < float32.length; index++) {
       int16[index] = Math.max(-32768, Math.min(32767, float32[index] * 32768));
@@ -1421,6 +1422,7 @@ function stopRecording() {
 }
 
 function releaseMicrophone() {
+  window.MedFlowMeter?.reset("consult");
   if (scriptProcessor) {
     scriptProcessor.disconnect();
     scriptProcessor = null;
@@ -1614,7 +1616,7 @@ function renderTranscript() {
     return `
       <div class="transcript-entry ${highlighted ? "source-highlight" : ""}" data-utterance-id="${escAttr(utteranceId)}">
         <div class="speaker ${speaker}" title="${escAttr(role)}">${escHtml(speakerLabel).toUpperCase()}</div>
-        <p>${escHtml(entry.text || "")}</p>
+        <span class="turn-id">${escHtml(utteranceId)}${entry.needs_review ? " · Review role" : ""}</span><p dir="auto">${escHtml(entry.text || "")}</p>
       </div>`;
   }).join("");
 }

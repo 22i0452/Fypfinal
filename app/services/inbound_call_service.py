@@ -81,6 +81,9 @@ class LiveCallSession:
     history: list[dict[str, str]] = field(default_factory=list)
     speaking: bool = False
     processing: bool = False
+    booking_history: list[dict[str, str]] = field(default_factory=list)
+    booking_process: dict[str, Any] = field(default_factory=dict)
+    booking_result: dict[str, Any] | None = None
     last_patient_text: str = ""
     last_patient_at: float = 0.0
     # Media stream / VAD
@@ -330,6 +333,38 @@ class InboundCallService:
             daemon=True,
         ).start()
 
+    def attach_booking(self, service, integration):
+        self.booking_service = service
+        self.booking_integration = integration
+
+    def _booking_reply(self, call_control_id, text):
+        service = getattr(self, 'booking_service', None)
+        if service is None:
+            return self._llm_reply(call_control_id)
+        with self._lock:
+            session = self._sessions.get(call_control_id)
+            if session is None:
+                return ''
+            history = list(session.booking_history)
+        if not history:
+            history = service.start('in-new-booking')['history']
+        result = service.turn(scenario_id='in-new-booking', history=history, user_message=text)
+        saved = None
+        if result.get('booking_complete'):
+            saved = service.finish(scenario_id='in-new-booking', history=result['history'], integration=self.booking_integration)
+        with self._lock:
+            session = self._sessions.get(call_control_id)
+            if session:
+                session.booking_history = result['history']
+                session.booking_process = result.get('process') or {}
+                if saved is not None:
+                    session.booking_result = saved
+        if saved is not None:
+            if saved.get('booking', {}).get('appointment', {}).get('appointment_id'):
+                return 'آپ کی اپائنٹمنٹ کی درخواست محفوظ ہو گئی ہے۔ کلینک سے تصدیق ہوگی۔ شکریہ۔'
+            return 'آپ کی معلومات محفوظ ہیں لیکن اپائنٹمنٹ بک نہیں ہوئی۔ براہ کرم کلینک سے رابطہ کریں۔'
+        return str(result.get('speech_text') or result.get('reply') or '')
+
     @property
     def configured(self) -> bool:
         return bool(self.api_key and self.webhook_base_url)
@@ -566,7 +601,7 @@ class InboundCallService:
                 )
                 session.history.append({"role": "user", "content": text})
 
-            reply = self._llm_reply(call_control_id)
+            reply = self._booking_reply(call_control_id, text)
             if not reply:
                 reply = "براہ کرم مختصر بتائیں — آپ کا نام کیا ہے؟"
             self._speak(call_control_id, reply, role="agent")
@@ -786,6 +821,9 @@ class InboundCallService:
             "started_at": session.started_at,
             "ended_at": session.ended_at or None,
             "speaking": session.speaking,
+            "processing": session.processing,
+            "booking_process": session.booking_process,
+            "booking_result": session.booking_result,
             "transcript": [
                 {
                     "role": line.role,

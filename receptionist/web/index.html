@@ -6,8 +6,8 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Medflow AI | Receptionist</title>
 <link href="/branding/icon" rel="icon" type="image/png"/>
-<link href="/assets/ui.css?v=20261007-studio" rel="stylesheet"/>
-<link href="/receptionist-static/receptionist.css?v=20261007-studio" rel="stylesheet"/>
+<link href="/assets/ui.css?v=20261007-process" rel="stylesheet"/>
+<link href="/receptionist-static/receptionist.css?v=20261007-process" rel="stylesheet"/>
 </head>
 <body class="receptionist-body">
 <div class="app-shell receptionist-shell">
@@ -154,7 +154,7 @@
 <button class="note-action" hidden="" id="demoLiveBtn" onclick="showView('live')" type="button">Open phone live calls</button>
 </div>
 </div>
-<div class="demo-transcript" id="demoTranscript">
+<section id="receptionProcess" class="reception-process" aria-label="Voice agent process"></section><div class="demo-transcript" id="demoTranscript">
 <div class="live-empty">Choose a scenario on the left, then start a live interactive demo.</div>
 </div>
 <div class="booking-result demo-result" hidden="" id="demoResult"></div>
@@ -195,6 +195,6 @@
 </main>
 </div>
 <div class="toast" id="toast"></div>
-<script src="/receptionist-static/app.js?v=20261007-studio"></script>
-<script src="/assets/vendor/lucide.min.js"></script><script src="/receptionist-static/studio.js"></script><script src="/assets/icons.js"></script></body>
+<script src="/assets/voice-meter.js?v=20261007-process"></script><script src="/receptionist-static/app.js?v=20261007-process"></script>
+<script src="/assets/vendor/lucide.min.js"></script><script src="/receptionist-static/studio.js"></script><script src="/receptionist-static/process.js?v=20261007-process"></script><script src="/assets/icons.js?v=20261007-process"></script></body>
 </html>

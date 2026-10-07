@@ -94,10 +94,9 @@ def looks_garbled_urdu(text: str) -> bool:
     if not clean:
         return True
     urdu_words = re.findall(r"[\u0600-\u06FF]{2,}", clean)
-    if len(urdu_words) < 2 and not re.search(r"\d{3,}", clean):
-        return True
-    # Very short odd phrases with no digits/names structure
-    if len(clean) <= 12 and not re.search(r"\d", clean):
+    # Names, yes/no confirmations and ages are legitimately one short token.
+    # Grammar/meaning belongs to BookingFlow, which can ask for clarification.
+    if not re.search(r"[A-Za-z؀-ۿݐ-ݿ\d]", clean):
         return True
     # High ratio of rare/unlikely token patterns from bad Whisper hallucinations
     nonsense_hits = 0

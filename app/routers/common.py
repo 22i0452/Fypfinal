@@ -20,6 +20,8 @@ def service_http_error(error: Exception, *, default_status: int = status.HTTP_40
         status_code = status.HTTP_404_NOT_FOUND
     elif code in {
         "IDEMPOTENCY_CONFLICT",
+        "VERSION_CONFLICT",
+        "INVALID_NOTE_STATE",
         "INTAKE_CONFLICT",
         "BOOKING_ALREADY_FORWARDED",
         "SLOT_CONFLICT",

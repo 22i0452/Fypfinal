@@ -171,6 +171,7 @@ class DemoCallService:
             "reply": opening,
             "speech_text": self.urdu_for_speech(opening),
             "history": [first, {"role": "assistant", "content": opening}],
+            "process": BookingFlow.from_history([first]).process_state() if scenario.get("flow") == "booking" else {"simulation":True},
         }
 
     def turn(self, *, scenario_id: str, history: list[dict[str, str]], user_message: str) -> dict[str, Any]:
@@ -231,7 +232,8 @@ class DemoCallService:
     def _booking_turn(self, scenario_id: str, history: list[dict[str, str]], clean: str) -> dict[str, Any]:
         flow = BookingFlow.from_history(history)
         today = datetime.now(_CLINIC_TIMEZONE).date()
-        urdu, english = flow.handle(clean, self._extract(flow, clean), today=today)
+        extracted = self._extract(flow, clean)
+        urdu, english = flow.handle(clean, extracted, today=today)
         reply = f"{urdu}\n{english}"
         # The transcript is display-only here (the LLM never sees it), so keep
         # it bounded; the call state carries every collected detail.
@@ -247,6 +249,7 @@ class DemoCallService:
             "speech_text": self.urdu_for_speech(reply),
             "history": [flow.state_message(), *transcript[-20:]],
             "booking_complete": flow.done,
+            "process": {**flow.process_state(), "extractor":extracted.get("_process_metadata")},
         }
 
     def finish(
@@ -274,7 +277,7 @@ class DemoCallService:
             "details": flow.details(),
             "missing": [SLOT_BY_KEY[key].label_en for key in _INTAKE_KEYS if key not in flow.values],
         }
-        if result["missing"]:
+        if result["missing"] or not flow.done:
             return result
         values = flow.values
         try:
@@ -370,15 +373,20 @@ class DemoCallService:
 
     def _extract(self, flow: BookingFlow, caller_text: str) -> dict[str, Any]:
         messages = flow.extraction_messages(caller_text, today=datetime.now(_CLINIC_TIMEZONE).date())
-        for url, api_key, model in self._providers():
+        for attempt, (url, api_key, model) in enumerate(self._providers()):
             try:
                 raw = self._completion(url, api_key, model, messages, max_tokens=400, raw=True)
                 match = re.search(r"\{.*\}", _THINK_BLOCK.sub("", raw), re.S)
                 if match:
-                    return json.loads(match.group(0))
+                    result = json.loads(match.group(0))
+                    if isinstance(result, dict):
+                        result["_process_metadata"] = {"provider":"groq" if "groq.com" in url else "openrouter", "model":model, "fallback":attempt>0}
+                        return result
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Booking extraction via %s failed: %s", model, exc)
-        return flow.fallback_extraction(caller_text)
+        result = flow.fallback_extraction(caller_text)
+        result["_process_metadata"] = {"method":"Local extraction fallback", "fallback":True}
+        return result
 
     def _providers(self) -> list[tuple[str, str, str]]:
         providers = []

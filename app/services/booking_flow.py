@@ -227,6 +227,11 @@ class BookingFlow:
     def done(self) -> bool:
         return self.step == "done"
 
+    def process_state(self) -> dict[str, Any]:
+        return {"step":self.step, "current_field":self.current, "values":self.values,
+                "pending":self.pending, "confirmed":self.done, "saved":False,
+                "missing":[slot.key for slot in SLOTS if slot.key not in self.values]}
+
     def details(self) -> list[dict[str, str]]:
         """Collected details in slot order, formatted for display."""
         rows = []

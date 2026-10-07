@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .audit import audit_event
+from .telemetry import provider_event
 from .authz import Actor, AuthorizationError, require_authorized
 from .phi import contains_phi, minimize_payload
 from .provider_adapters import (
@@ -345,13 +346,16 @@ class SecureLLMGateway:
                     )
                 if time.perf_counter() - started > timeout_seconds:
                     raise GatewaySecurityError("Provider request timed out")
+                provider_event(task_type, attempt_provider, attempt_model, "complete", attempt_provider != provider_name or attempt_model != selected_model)
                 return str(result)
             except GatewaySecurityError:
                 raise
             except ProviderAdapterError as exc:
+                provider_event(task_type, attempt_provider, attempt_model, "failed")
                 last_error = exc
                 print(f"[Gateway] {task_type} via {attempt_provider}/{attempt_model} failed: {exc}")
             except Exception as exc:
+                provider_event(task_type, attempt_provider, attempt_model, "failed")
                 last_error = exc
                 print(f"[Gateway] {task_type} via {attempt_provider}/{attempt_model} failed: {type(exc).__name__}")
         raise GatewaySecurityError("Provider request failed safely") from last_error
@@ -434,11 +438,14 @@ class SecureLLMGateway:
                         },
                     )
                     print(f"[Gateway] {task_type} fallback -> {attempt_provider}/{attempt_model}")
+                provider_event(task_type, attempt_provider, attempt_model, "complete", attempt_provider != provider_name or attempt_model != selected_model)
                 return text
             except ProviderAdapterError as exc:
+                provider_event(task_type, attempt_provider, attempt_model, "failed")
                 last_error = exc
                 print(f"[Gateway] {task_type} via {attempt_provider}/{attempt_model} failed: {exc}")
             except Exception as exc:
+                provider_event(task_type, attempt_provider, attempt_model, "failed")
                 last_error = exc
                 print(f"[Gateway] {task_type} via {attempt_provider}/{attempt_model} failed: {type(exc).__name__}")
         raise GatewaySecurityError("Provider STT failed safely") from last_error

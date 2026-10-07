@@ -150,6 +150,17 @@ class DemoCallFinishTests(unittest.TestCase):
         self.assertEqual(result["missing"], ["Phone", "First visit", "Medical history", "Complaint"])
         self.assertEqual([row["key"] for row in result["details"]], ["name", "age"])
 
+    def test_unconfirmed_final_summary_cannot_create_booking(self) -> None:
+        from app.services.booking_flow import BookingFlow
+        history = self._full_call(self._first_open_slot())
+        flow = BookingFlow.from_history(history)
+        flow.step = "summary"
+        unconfirmed = [flow.state_message(), *[item for item in history if item["role"] != "system"]]
+        result = self._finish(unconfirmed)
+        self.assertFalse(result["saved"])
+        self.assertFalse(result["confirmed"])
+        self.assertEqual(len(self.client.app.state.container.patient_repository.list()), 0)
+
     def test_other_scenarios_are_not_saved(self) -> None:
         response = self.client.post("/api/desk/demo-calls/finish", json={"scenario_id": "in-cancel", "history": []})
         self.assertEqual(response.json(), {"supported": False, "saved": False})

@@ -34,6 +34,7 @@ from app.services import (
 )
 from app.services.confirmation_call_service import ConfirmationCallService
 from app.services.demo_call_service import DemoCallService
+from app.services.process_trace import ProcessTraceStore
 from app.services.inbound_call_service import CallMediaStore, InboundCallService
 from medflow.orchestration import ClinicWorkflowOrchestrator
 from medflow.repositories import (
@@ -51,6 +52,7 @@ class ApplicationContainer:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self.database = SQLiteDatabase(settings.database_path)
+        self.process_trace = ProcessTraceStore(self.database)
         self.auth_repository = SQLiteAuthRepository(
             self.database,
             primary_doctor_email=settings.primary_doctor_email,
@@ -151,6 +153,7 @@ class ApplicationContainer:
             groq_llm_model=settings.groq_llm_model,
             openrouter_api_key=settings.openrouter_api_key,
         )
+        self.inbound_call_service.attach_booking(self.demo_call_service, self.receptionist_integration_service)
         self.template_service = TemplateService(self.template_repository)
         self.documentation_service = DocumentationService(
             notes=self.note_repository,
@@ -199,6 +202,7 @@ class ApplicationContainer:
                 stacklevel=2,
             )
         self.database.initialize()
+        self.process_trace.initialize()
         self.database.seed_clinic_configuration(self.settings.clinic_seed_path)
         self.database.connect_existing_doctors_to_profiles()
         self.template_service.seed_defaults()

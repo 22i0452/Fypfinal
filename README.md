@@ -1,5 +1,7 @@
 # MedFlowAI — Clinic Agent Platform
 
+**Process and voice refinement:** see [PROCESS_STUDIO.md](PROCESS_STUDIO.md) for separate agent workspaces, actual stage events, source inspection, role correction, voice recovery and Replit update instructions.
+
 **Refined web workspace:** see [REFINEMENT.md](REFINEMENT.md) for the new clinical studio, guided encounter flow, recovery changes, and validation.
 
 
