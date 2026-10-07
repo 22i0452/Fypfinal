@@ -1,0 +1,18 @@
+{
+  "active": true,
+  "created_at": "2026-09-09T14:49:48.298010Z",
+  "created_by_actor_id": "system",
+  "custom": false,
+  "name": "Detailed Consultation",
+  "sections": [
+    "chief_complaint",
+    "history_of_present_illness",
+    "medical_history",
+    "subjective",
+    "objective",
+    "assessment",
+    "plan",
+    "follow_up"
+  ],
+  "template_id": "TPL-DETAIL-01"
+}

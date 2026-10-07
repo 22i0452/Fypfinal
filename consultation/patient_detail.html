@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Medflow AI Consultation</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    :root{--bg:#ECEDEF;--nav:#081D3A;--line:#DEE3EA;--white:#fff;--text:#1F2937;--muted:#6B7280}
+    body{font-family:Segoe UI,Tahoma,sans-serif;background:var(--bg);color:var(--text)}
+    .app{display:flex;min-height:100vh}
+    .nav{width:280px;background:var(--nav);padding:14px 16px;color:#ECF2FA;display:flex;flex-direction:column}
+    .brand{display:flex;align-items:center;margin-bottom:16px;padding:4px 2px}
+    .brand-logo{width:250px;max-width:100%;height:auto;display:block;color:#FFFFFF}
+    .item{display:flex;align-items:center;gap:12px;padding:10px 12px;font-size:16px;font-weight:600}
+    .item.active{background:#fff;color:#0A2240}
+    .spacer{flex:1}
+    .feedback{border:1px solid var(--line);background:#fff;color:#0A2240;padding:11px;font-size:16px}
+
+    .main{flex:1;display:flex;flex-direction:column}
+    .top{padding:18px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+    .search{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);padding:10px 14px;min-width:420px}
+    .search input{border:0;outline:none;font-size:18px;width:100%}
+    .right{display:flex;align-items:center;gap:14px}
+    .pill{background:#fff;border:1px solid var(--line);padding:8px 12px}
+    .avatar{width:44px;height:44px;border-radius:50%;background:#1E88B5;color:#fff;display:grid;place-items:center;font-weight:700}
+
+    .content{display:flex;gap:20px;padding:18px 20px 100px}
+    .left{flex:1;background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px}
+    .right-panel{width:390px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px}
+
+    .tabs{display:flex;gap:10px;margin-bottom:14px}
+    .tab{border:1px solid #9BA6B4;background:#F7F9FC;padding:8px 16px;cursor:pointer;font-size:15px}
+    .tab.active{background:#0A2240;color:#fff;border-color:#0A2240}
+
+    .section{border:1px solid var(--line);border-radius:12px;margin-bottom:14px;overflow:hidden}
+    .section-h{background:#F3F6FA;padding:12px 14px;font-size:17px;font-weight:700}
+    .section-b{padding:16px;line-height:1.45;color:#30343C}
+    .kv{display:grid;grid-template-columns:180px 1fr;gap:10px;margin-bottom:12px}
+    .kv .k{font-weight:700;color:#374151}
+
+    .trans{font-size:17px;font-weight:700;margin-bottom:10px}
+    .hint{font-style:italic;color:#94A3B8;font-size:16px}
+
+    .footer{position:fixed;left:280px;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:12px 20px;display:flex;justify-content:space-between;align-items:center}
+    .warn{background:#F9F3E6;border:1px solid #EED8A6;padding:10px 12px;border-radius:8px;font-size:14px;color:#9A4C00;flex:1;margin-right:16px}
+    .record{background:#0A2240;color:#fff;border:0;padding:12px 20px;font-size:24px;cursor:pointer}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="nav">
+      <div class="brand" aria-label="MedFlowAI">
+        <svg class="brand-logo" viewBox="0 0 470 90" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MedFlowAI logo">
+          <g transform="translate(4,6)" stroke="currentColor" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M58 8v67"/>
+            <circle cx="58" cy="10" r="5" fill="currentColor"/>
+            <path d="M33 18c10 8 18 11 25 11s15-3 25-11"/>
+            <path d="M33 18c-6 8-11 12-17 13"/>
+            <path d="M83 18c6 8 11 12 17 13"/>
+            <path d="M58 20c-11 7-18 15-18 24 0 7 4 12 18 17 14 5 18 10 18 17 0 9-8 17-18 24"/>
+            <path d="M58 20c11 7 18 15 18 24 0 7-4 12-18 17-14 5-18 10-18 17 0 9 8 17 18 24"/>
+            <path d="M12 32h15"/>
+            <path d="M8 47h19"/>
+            <path d="M12 62h15"/>
+            <circle cx="8" cy="32" r="3" fill="currentColor"/>
+            <circle cx="4" cy="47" r="3" fill="currentColor"/>
+            <circle cx="8" cy="62" r="3" fill="currentColor"/>
+            <path d="M89 32h9"/>
+            <path d="M89 47h13"/>
+            <path d="M89 62h9"/>
+          </g>
+          <text x="118" y="61" fill="currentColor" font-family="Segoe UI, Tahoma, sans-serif" font-size="52" font-weight="700">MedFlowAI</text>
+        </svg>
+      </div>
+      <div class="item active">Visits</div>
+      <div class="item">Notes</div>
+      <div class="item">Notes Templates</div>
+      <div class="item">Assistant</div>
+      <div class="item">Labs</div>
+      <div class="item">Medical Coder</div>
+      <div class="item">Automations</div>
+      <div class="item">Alerts</div>
+      <div class="spacer"></div>
+      <button class="feedback">Send Feedback</button>
+    </aside>
+
+    <section class="main">
+      <div class="top">
+        <div class="search"><span>⌕</span><input id="patientName" readonly></div>
+        <div class="right">
+          <div class="pill">Classic SOAP</div>
+          <div class="pill">Support</div>
+          <div class="avatar" id="doctorInitials">DR</div>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="left">
+          <div class="tabs">
+            <button class="tab active" data-tab="pre">Pre-Visit</button>
+            <button class="tab" data-tab="during">During-Visit</button>
+            <button class="tab" data-tab="post">Post-Visit</button>
+            <button class="tab" data-tab="actions">Actions</button>
+          </div>
+
+          <div id="pre" class="tab-content">
+            <div class="section">
+              <div class="section-h">Pre-Visit Summary</div>
+              <div class="section-b" id="preBody"></div>
+            </div>
+          </div>
+
+          <div id="during" class="tab-content" style="display:none">
+            <div class="section">
+              <div class="section-h">During Visit</div>
+              <div class="section-b" id="duringBody"></div>
+            </div>
+          </div>
+
+          <div id="post" class="tab-content" style="display:none">
+            <div class="section">
+              <div class="section-h">Post Visit Plan</div>
+              <div class="section-b" id="postBody"></div>
+            </div>
+          </div>
+
+          <div id="actions" class="tab-content" style="display:none">
+            <div class="section">
+              <div class="section-h">Actions</div>
+              <div class="section-b" id="actionsBody"></div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="right-panel">
+          <div class="trans">Transcript</div>
+          <div class="hint">You can see the transcript here...</div>
+        </aside>
+      </div>
+    </section>
+  </div>
+
+  <div class="footer">
+    <div class="warn">IMPORTANT: Please remember to obtain verbal consent from patients before recording the visit.</div>
+    <button class="record">● Start Recording</button>
+  </div>
+
+  <script>
+    const fileName = decodeURIComponent(window.location.pathname.split('/').pop());
+
+    function renderKV(rows){
+      return rows.map(([k,v]) => `<div class="kv"><div class="k">${k}</div><div>${v || '-'}</div></div>`).join('');
+    }
+
+    function useTab(id){
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === id));
+      document.querySelectorAll('.tab-content').forEach(c => c.style.display = (c.id === id ? 'block' : 'none'));
+    }
+
+    document.querySelectorAll('.tab').forEach(btn => {
+      btn.addEventListener('click', () => useTab(btn.dataset.tab));
+    });
+
+    (async function init(){
+      const me = await fetch('/api/consultation/me');
+      if(me.ok){
+        const d = await me.json();
+        const p = (d.full_name || 'Doctor').trim().split(/\s+/).filter(Boolean);
+        document.getElementById('doctorInitials').textContent = ((p[0]?.[0] || 'D') + (p[1]?.[0] || 'R')).toUpperCase();
+      }
+
+      const r = await fetch('/api/consultation/patient/' + encodeURIComponent(fileName));
+      if(!r.ok){
+        document.getElementById('preBody').textContent = 'Patient detail not found.';
+        return;
+      }
+
+      const d = await r.json();
+      document.getElementById('patientName').value = d.name || fileName;
+
+      document.getElementById('preBody').innerHTML = renderKV([
+        ['Previous visit', d.pre_visit.previous_visit],
+        ['Name', d.name],
+        ['Age', d.age],
+        ['Phone', d.phone_number],
+        ['Booking slot', d.booking_slot_time],
+        ['History', d.past_medical_history],
+      ]);
+
+      document.getElementById('duringBody').innerHTML = renderKV([
+        ['Current complaint', d.current_complaint],
+        ['First visit', d.first_visit],
+        ['Booking slot', d.booking_slot_time],
+        ['Recorded at', d.recorded_at],
+      ]);
+
+      document.getElementById('postBody').innerHTML = renderKV([
+        ['Assessment', d.post_visit.assessment],
+        ['Plan', d.post_visit.plan],
+      ]);
+
+      document.getElementById('actionsBody').innerHTML = '<ul>' + d.actions.map(x => `<li>${x}</li>`).join('') + '</ul>';
+    })();
+  </script>
+</body>
+</html>

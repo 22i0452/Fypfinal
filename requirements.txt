@@ -1,0 +1,33 @@
+# ─── Audio I/O ────────────────────────────────────────────────────────────────
+sounddevice>=0.4.6          # Cross-platform microphone recording & playback
+numpy>=1.24.0               # Audio array manipulation
+soundfile>=0.12.1           # WAV encoding for STT upload
+
+# ─── Speech-to-Text ───────────────────────────────────────────────────────────
+google-generativeai>=0.8.0  # Gemini 2.0 Flash — STT (best Urdu accuracy)
+groq>=0.9.0                 # Groq API — LLaMA LLM brain
+
+# ─── Text-to-Speech ───────────────────────────────────────────────────────────────
+elevenlabs>=1.0.0           # Cloud TTS SDK (multilingual voice quality)
+edge-tts>=6.1.9             # Microsoft Edge TTS — fallback (ur-PK-UzmaNeural)
+pygame-ce>=2.5.2            # MP3 audio playback (pygame-compatible; works on Python 3.14)
+
+# ─── UI ────────────────────────────────────────────────────────────────────
+customtkinter>=5.2.0        # Modern themed Tkinter widgets
+pillow>=9.0.0               # Image support for UI
+
+# ─── Utilities ─────────────────────────────────────────────────────────────────
+python-dotenv>=1.0.0        # Load API keys from .env file
+tzdata>=2025.2              # IANA timezone data for ZoneInfo on Windows
+
+# ─── Web App (Consultation Module) ───────────────────────────────────────────
+fastapi>=0.115.0            # API framework used by web_server.py
+uvicorn>=0.30.0             # ASGI server for FastAPI
+itsdangerous>=2.2.0         # Session signing for Starlette SessionMiddleware
+python-multipart>=0.0.20    # Required for UploadFile/form-data endpoints
+
+# ─── Module 2: SOAP Note Generation ──────────────────────────────────────────
+websockets>=12.0            # WebSocket support for FastAPI/uvicorn
+# Optional: pyannote.audio (premium speaker diarization — needs HF_TOKEN)
+# pyannote.audio>=3.1.0    # Uncomment to enable ML-based diarization
+# torch>=2.0.0             # Required by pyannote.audio

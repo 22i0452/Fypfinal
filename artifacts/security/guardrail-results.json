@@ -1,0 +1,125 @@
+{
+  "summary": {
+    "passed": 12,
+    "failed": 0,
+    "total": 12
+  },
+  "tests": [
+    {
+      "id": "SEC-01",
+      "name": "Direct provider bypass",
+      "status": "PASS",
+      "evidence": {
+        "offenders": []
+      }
+    },
+    {
+      "id": "SEC-02",
+      "name": "PHI removed from outbound payload",
+      "status": "PASS",
+      "evidence": {
+        "outbound": "[{\"role\": \"system\", \"content\": \"Generate a draft only.\"}, {\"role\": \"user\", \"content\": \"Name [PATIENT_NAME], phone [PHONE], CNIC [CNIC], email [EMAIL], fever.\"}]"
+      }
+    },
+    {
+      "id": "SEC-03",
+      "name": "Unapproved STT route blocked",
+      "status": "PASS",
+      "evidence": {
+        "blocked": true
+      }
+    },
+    {
+      "id": "SEC-04",
+      "name": "Cross-patient access denied",
+      "status": "PASS",
+      "evidence": {
+        "denied": true
+      }
+    },
+    {
+      "id": "SEC-05",
+      "name": "Agent tool restriction",
+      "status": "PASS",
+      "evidence": {
+        "denied": 3,
+        "cross_task_denied": true
+      }
+    },
+    {
+      "id": "SEC-06",
+      "name": "Transcript prompt injection contained",
+      "status": "PASS",
+      "evidence": {
+        "contained": true
+      }
+    },
+    {
+      "id": "SEC-07",
+      "name": "Malformed SOAP rejected",
+      "status": "PASS",
+      "evidence": {
+        "issues": [
+          "schema_validation_failed",
+          "missing",
+          "missing",
+          "missing",
+          "missing"
+        ]
+      }
+    },
+    {
+      "id": "SEC-08",
+      "name": "Unsupported clinical fact flagged",
+      "status": "PASS",
+      "evidence": {
+        "issues": [
+          "unsupported_clinical_fact:medication_or_dosage",
+          "unsupported_clinical_fact:plan"
+        ]
+      }
+    },
+    {
+      "id": "SEC-09",
+      "name": "Doctor approval required",
+      "status": "PASS",
+      "evidence": {
+        "blocked_unapproved": true,
+        "approved_state": "APPROVED_BY_DOCTOR"
+      }
+    },
+    {
+      "id": "SEC-10",
+      "name": "Logs contain no PHI/secrets",
+      "status": "PASS",
+      "evidence": {
+        "audit": "[{\"event_type\": \"synthetic_event\", \"actor_ref\": \"doctor:synthetic\", \"action\": \"test\", \"patient_ref\": \"patient_SYNTH_A_en.json\", \"result\": \"allow\", \"request_id\": \"req_1787482696707\", \"timestamp\": \"2026-08-23T10:58:16Z\", \"metadata\": {\"phone\": \"[REDACTED]\", \"transcript\": \"[REDACTED]\", \"api_key\": \"[REDACTED]\"}}]"
+      }
+    },
+    {
+      "id": "SEC-11",
+      "name": "Audio cleanup succeeds",
+      "status": "PASS",
+      "evidence": {
+        "metadata": {
+          "state": "AUDIO_DELETED",
+          "consent_recorded": false,
+          "retention_enabled": false,
+          "retention_days": 0,
+          "audio_ref": "",
+          "created_at": "2026-08-23T15:58:16",
+          "delete_after": ""
+        }
+      }
+    },
+    {
+      "id": "SEC-12",
+      "name": "Existing MedFlowAI workflow still works",
+      "status": "PASS",
+      "evidence": {
+        "translated_count": 1,
+        "soap_state": "REVIEW_REQUIRED"
+      }
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "change_reason": "AI-generated draft",
+  "created_at": "2026-09-09T16:58:21.024693Z",
+  "created_by_actor_id": "soap-generator-agent",
+  "evidence": [
+    {
+      "evidence_id": "U1",
+      "excerpt": "[Translation needed] مرحبا، یہ تیسر وزٹ ہے، ایک دو سو تری۔",
+      "source_id": "U1",
+      "source_type": "TRANSCRIPT_UTTERANCE"
+    }
+  ],
+  "note_id": "NOTE-DF4FEDC79461412F",
+  "note_version_id": "NV-50A18BD654E0406E",
+  "soap": {
+    "assessment": [
+      {
+        "claim_id": "NOTE-DF4FEDC79461412F-ASSESSMENT-001",
+        "evidence_ids": [],
+        "status": "REVIEW_REQUIRED",
+        "text": "A clinician-stated assessment was not documented and requires review."
+      }
+    ],
+    "missing_information": [
+      "Assessment requires clinician input",
+      "Plan requires clinician input"
+    ],
+    "objective": [
+      {
+        "claim_id": "NOTE-DF4FEDC79461412F-OBJECTIVE-001",
+        "evidence_ids": [],
+        "status": "REVIEW_REQUIRED",
+        "text": "No vital signs, examination findings, or completed diagnostic results were documented in the supplied encounter."
+      }
+    ],
+    "plan": [
+      {
+        "claim_id": "NOTE-DF4FEDC79461412F-PLAN-001",
+        "evidence_ids": [],
+        "status": "REVIEW_REQUIRED",
+        "text": "A clinician-stated treatment or follow-up plan was not documented."
+      }
+    ],
+    "subjective": [
+      {
+        "claim_id": "NOTE-DF4FEDC79461412F-SUBJECTIVE-001",
+        "evidence_ids": [],
+        "status": "REVIEW_REQUIRED",
+        "text": "Intake additionally records the presenting concern as: Synthetic follow-up complaint. Relevant history recorded at intake: Synthetic controlled condition."
+      }
+    ],
+    "unsupported_claims": [],
+    "warnings": [
+      "The model draft was unavailable; a transcript-grounded fallback requires clinician review.",
+      "The model provider was unavailable; a transcript-grounded fallback was created."
+    ]
+  },
+  "status": "AI_DRAFT",
+  "template_id": "TPL-CUSTOM-01",
+  "transcript_id": "TRN-D889AF224DF34EFF",
+  "version_number": 1
+}

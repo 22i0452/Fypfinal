@@ -1,0 +1,53 @@
+{
+  "normalized": "اسلام علیکم دکٹر صاحب کیسا ہے؟ Hello doctor, how are you? ہاں علیکم اسلام علیکم، میں ٹھیک ہوں، میں بھائی چلتا ہوں، کیسا ہوں آپ کا؟ Hello doctor, how are you? I am fine, how are you? ڈاکٹر صاحب اسی میں میں چل رہا تھا، چلتے چلتے، ایک دم میرا پاؤں پیری طرح مر گیا۔ My leg was completely injured. اچھا سب سے پہلے تو یہ ہے کہ آپ کو میں کچھ پینک لگز لکھ رہا ہوں۔ I am giving you some pain killers. آپ کا جو اللہ تعالیٰ و عبادتی تو اس پر ٹھین گئے۔ Your other pain killers are fine. دوسری چیز جو میں آپ کو کر رہا ہوں، کافی زیادہ اعتراض کرتا ہے۔ The second thing that I am telling you is that you have to take a lot of care. آپ کے پرلی کافی نوزلز وطارہ تو یہ مزید خراب ہو سکتی ہے۔ Your back can be damaged if you take too much care. اس کے علاوہ آپ اور بھی اپنا اعتراض کر سکتے ہیں۔ Apart from that, you can take more care. اور جتنا بھی ہو سکتا ہے آپ بس چلنے سے فریض کریں۔ And as much as possible, you just have to stop walking. اور پھر اس کے علاوہ آپ کو میں کچھ ایکسلی ریپورٹ لکھ کے دے رہا ہوں And then I am giving you some Excel reports. اور ایم ار آئی اور سی ٹی سکين لکھ کے دے رہا ہوں And I am giving you MRI and CT Scan. اس ایم ار آئی آپ نے آئی پنٹراسٹ کے ساتھ کروانے ہے۔ You have to get this MRI done with eye contrast. انشاء اللہ جب آپ اگلی بار آئیں گے ریپورٹ کے ساتھ So, God willing, when you come next time with the report اگر آپ کو ایک بہترین حالت پر بات کرتے ہیں تو میں آپ کو بتا سکتا ہوں کہ یہ ایک ایسا محبت ہے۔ If you have a better idea, I will tell you that it is a good idea.",
+  "chunk_count": 11,
+  "chunk_lengths": [
+    157,
+    139,
+    176,
+    140,
+    155,
+    153,
+    154,
+    132,
+    74,
+    122,
+    66
+  ],
+  "heuristic_speakers": [
+    "Doctor",
+    "Patient",
+    "Doctor",
+    "Patient",
+    "Doctor",
+    "Patient",
+    "Doctor"
+  ],
+  "heuristic_text": [
+    "اسلام علیکم دکٹر صاحب کیسا ہے؟ Hello doctor, how are you? ہاں علیکم اسلام علیکم، میں ٹھیک ہوں، میں بھائی چلتا ہوں، کیسا ",
+    "I am fine, how are you? ڈاکٹر صاحب اسی میں میں چل رہا تھا، چلتے چلتے، ایک دم میرا پاؤں پیری طرح مر گیا۔ My leg was compl",
+    "سب سے پہلے تو یہ ہے کہ آپ کو میں کچھ پینک لگز لکھ رہا ہوں۔ I am giving you some pain killers. آپ کا جو اللہ تعالیٰ و عبا",
+    "The second thing that I am telling you is that",
+    "you have to take a lot of care. آپ کے پرلی کافی نوزلز وطارہ تو یہ مزید خراب ہو سکتی ہے۔ Your back can be damaged if you ",
+    "I am giving you some Excel reports.",
+    "اور ایم ار آئی اور سی ٹی سکين لکھ کے دے رہا ہوں And I am giving you MRI and CT Scan. اس ایم ار آئی آپ نے آئی پنٹراسٹ کے "
+  ],
+  "result_speakers": [
+    "Doctor",
+    "Patient",
+    "Doctor",
+    "Patient",
+    "Doctor",
+    "Patient",
+    "Doctor"
+  ],
+  "result_text": [
+    "اسلام علیکم دکٹر صاحب کیسا ہے؟ Hello doctor, how are you? ہاں علیکم اسلام علیکم، میں ٹھیک ہوں، میں بھائی چلتا ہوں، کیسا ",
+    "I am fine, how are you? ڈاکٹر صاحب اسی میں میں چل رہا تھا، چلتے چلتے، ایک دم میرا پاؤں پیری طرح مر گیا۔ My leg was compl",
+    "سب سے پہلے تو یہ ہے کہ آپ کو میں کچھ پینک لگز لکھ رہا ہوں۔ I am giving you some pain killers. آپ کا جو اللہ تعالیٰ و عبا",
+    "The second thing that I am telling you is that",
+    "you have to take a lot of care. آپ کے پرلی کافی نوزلز وطارہ تو یہ مزید خراب ہو سکتی ہے۔ Your back can be damaged if you ",
+    "I am giving you some Excel reports.",
+    "اور ایم ار آئی اور سی ٹی سکين لکھ کے دے رہا ہوں And I am giving you MRI and CT Scan. اس ایم ار آئی آپ نے آئی پنٹراسٹ کے "
+  ]
+}

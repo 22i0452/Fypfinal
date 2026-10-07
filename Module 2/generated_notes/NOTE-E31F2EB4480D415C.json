@@ -1,0 +1,13 @@
+{
+  "approved_at": null,
+  "approved_by_doctor_id": null,
+  "created_at": "2026-09-09T15:51:49.825140Z",
+  "current_version_id": "NV-4D93C07BA2BF414D",
+  "encounter_id": "ENC-EC6D9BB0D00F496C",
+  "note_id": "NOTE-E31F2EB4480D415C",
+  "patient_id": "PT-DEMO-SYNTHETIC-002",
+  "rejected_at": null,
+  "rejected_by_doctor_id": null,
+  "state": "AI_DRAFT",
+  "updated_at": "2026-09-09T15:51:49.825142Z"
+}

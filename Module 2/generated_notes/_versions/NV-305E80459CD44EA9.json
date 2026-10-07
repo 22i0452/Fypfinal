@@ -1,0 +1,62 @@
+{
+  "change_reason": "AI-generated draft",
+  "created_at": "2026-09-09T15:54:56.541165Z",
+  "created_by_actor_id": "soap-generator-agent",
+  "evidence": [
+    {
+      "evidence_id": "U1",
+      "excerpt": "[Translation needed] اسلام علیکم ڈاکٹر صاحب مجھے شدید قسم کا درد ہو رہا ہے جوڑوں میں یہ آپ کو درد کیسے شروع ہوا ہے ڈاکٹر صاحب اصل میں میں فوٹبال کھیل رہا تھا تو ڈیفنڈر نے میرے پاؤں پہ پاؤں رکھا اس کے بعد میرا پاؤں موڑ گیا اس ساتھ میں گھٹنا بھی موڑ گیا تو یہ مسئلہ آ رہا ہے تو آپ کو اتنے پریشان ہونے کی ضرورت نہیں ہے ترجمہ",
+      "source_id": "U1",
+      "source_type": "TRANSCRIPT_UTTERANCE"
+    }
+  ],
+  "note_id": "NOTE-40C10D50238E4BE2",
+  "note_version_id": "NV-305E80459CD44EA9",
+  "soap": {
+    "assessment": [
+      {
+        "claim_id": "NOTE-40C10D50238E4BE2-ASSESSMENT-001",
+        "evidence_ids": [],
+        "status": "REVIEW_REQUIRED",
+        "text": "A clinician-stated assessment was not documented and requires review."
+      }
+    ],
+    "missing_information": [
+      "Assessment requires clinician input",
+      "Plan requires clinician input"
+    ],
+    "objective": [
+      {
+        "claim_id": "NOTE-40C10D50238E4BE2-OBJECTIVE-001",
+        "evidence_ids": [],
+        "status": "REVIEW_REQUIRED",
+        "text": "No vital signs, examination findings, or completed diagnostic results were documented in the supplied encounter."
+      }
+    ],
+    "plan": [
+      {
+        "claim_id": "NOTE-40C10D50238E4BE2-PLAN-001",
+        "evidence_ids": [],
+        "status": "REVIEW_REQUIRED",
+        "text": "A clinician-stated treatment or follow-up plan was not documented."
+      }
+    ],
+    "subjective": [
+      {
+        "claim_id": "NOTE-40C10D50238E4BE2-SUBJECTIVE-001",
+        "evidence_ids": [],
+        "status": "REVIEW_REQUIRED",
+        "text": "Intake additionally records the presenting concern as: Synthetic follow-up complaint. Relevant history recorded at intake: Synthetic controlled condition."
+      }
+    ],
+    "unsupported_claims": [],
+    "warnings": [
+      "The model draft was unavailable; a transcript-grounded fallback requires clinician review.",
+      "The model provider was unavailable; a transcript-grounded fallback was created."
+    ]
+  },
+  "status": "AI_DRAFT",
+  "template_id": "TPL-GP-01",
+  "transcript_id": "TRN-375C9C3FB28D4CBA",
+  "version_number": 1
+}

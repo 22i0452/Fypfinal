@@ -1,0 +1,20 @@
+{
+  "created_at": "2026-09-09T16:58:20.881671Z",
+  "encounter_id": "ENC-1F0A3433E3864819",
+  "patient_id": "PT-DEMO-SYNTHETIC-001",
+  "transcript_id": "TRN-D889AF224DF34EFF",
+  "utterances": [
+    {
+      "clinical_english": "[Translation needed] مرحبا، یہ تیسر وزٹ ہے، ایک دو سو تری۔",
+      "confidence": null,
+      "end_ms": null,
+      "needs_review": true,
+      "original_text": "مرحبا، یہ تیسر وزٹ ہے، ایک دو سو تری۔",
+      "segment_id": null,
+      "speaker": "UNKNOWN",
+      "start_ms": null,
+      "transcript_id": "TRN-D889AF224DF34EFF",
+      "utterance_id": "U1"
+    }
+  ]
+}

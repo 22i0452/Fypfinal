@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Medflow AI | Clinic Access</title>
+<link href="/branding/icon" rel="icon" type="image/png"/>
+<link href="/assets/ui.css?v=20261007-studio" rel="stylesheet"/>
+
+</head>
+<body class="auth-page auth-locked">
+<main class="auth-shell">
+<div class="auth-stage">
+<section aria-labelledby="welcomeHeading" class="auth-showcase glass">
+<div class="auth-logo-wrap"><div class="auth-wordmark"><i aria-hidden="true" data-lucide="audio-lines"></i>medflow<span>CLINICAL STUDIO</span></div></div>
+<div class="auth-copy">
+<div class="auth-kicker">Clinical workspace</div>
+<h1 id="welcomeHeading">A little clarity.<br/><em>A better consultation.</em></h1>
+<p>A focused space for bilingual conversations and considered clinical documentation.</p>
+</div>
+<div class="auth-security-line">Your clinic. One continuous workflow.</div>
+</section>
+<section aria-labelledby="authHeading" class="auth-card glass">
+<header class="auth-card-header">
+<h2 id="authHeading">Sign in</h2>
+<p id="authSubheading">Use your clinic account to open the authorized workspace.</p>
+</header>
+<div aria-label="Account access" class="auth-tabs" role="tablist">
+<button aria-controls="loginPanel" aria-selected="true" class="auth-tab active" id="loginTab" role="tab" type="button">Sign in</button>
+<button aria-controls="signupPanel" aria-selected="false" class="auth-tab" id="signupTab" role="tab" type="button">Create account</button>
+</div>
+<section aria-labelledby="loginTab" class="auth-panel active" id="loginPanel" role="tabpanel">
+<form class="auth-form" id="loginForm">
+<div class="auth-field">
+<label for="loginEmail">Email</label>
+<div class="auth-input-shell">
+<input autocomplete="username" id="loginEmail" name="email" placeholder="you@clinic.com" required="" type="email"/>
+</div>
+</div>
+<div class="auth-field">
+<label for="loginPassword">Password</label>
+<div class="auth-input-shell">
+<input autocomplete="current-password" id="loginPassword" name="password" placeholder="Enter your password" required="" type="password"/>
+</div>
+</div>
+<button class="auth-submit" id="loginSubmit" type="submit">Sign in</button>
+</form>
+<div class="auth-note">New doctor? <button id="openSignup" type="button">Create an account</button></div>
+</section>
+<section aria-labelledby="signupTab" class="auth-panel" hidden="" id="signupPanel" role="tabpanel">
+<form class="auth-form" id="signupForm">
+<div class="auth-field">
+<label for="signupName">Full name</label>
+<div class="auth-input-shell">
+<input autocomplete="name" id="signupName" maxlength="120" name="full_name" placeholder="Dr. Full Name" required="" type="text"/>
+</div>
+</div>
+<div class="auth-field">
+<label for="signupEmail">Email</label>
+<div class="auth-input-shell">
+<input autocomplete="username" id="signupEmail" maxlength="254" name="email" placeholder="you@clinic.com" required="" type="email"/>
+</div>
+</div>
+<div class="auth-row">
+<div class="auth-field">
+<label for="signupPassword">Password</label>
+<div class="auth-input-shell">
+<input autocomplete="new-password" id="signupPassword" minlength="8" name="password" placeholder="At least 8 characters" required="" type="password"/>
+</div>
+</div>
+<div class="auth-field">
+<label for="signupConfirm">Confirm password</label>
+<div class="auth-input-shell">
+<input autocomplete="new-password" id="signupConfirm" minlength="8" name="password_confirmation" placeholder="Repeat password" required="" type="password"/>
+</div>
+</div>
+</div>
+<button class="auth-submit" id="signupSubmit" type="submit">Create account</button>
+</form>
+<div class="auth-note">Already registered? <button id="openLogin" type="button">Return to sign in</button></div>
+</section>
+<p aria-live="polite" class="auth-message" id="authMessage"></p>
+</section>
+</div>
+</main>
+<script>
+    const authHeading = document.getElementById("authHeading");
+    const authSubheading = document.getElementById("authSubheading");
+    const authMessage = document.getElementById("authMessage");
+    const loginPanel = document.getElementById("loginPanel");
+    const signupPanel = document.getElementById("signupPanel");
+    const loginTab = document.getElementById("loginTab");
+    const signupTab = document.getElementById("signupTab");
+
+    function showMessage(message = "", tone = "") {
+      authMessage.textContent = message;
+      authMessage.className = `auth-message ${tone}`.trim();
+    }
+
+    function setMode(mode) {
+      const signup = mode === "signup";
+      loginPanel.classList.toggle("active", !signup);
+      signupPanel.classList.toggle("active", signup);
+      loginPanel.hidden = signup;
+      signupPanel.hidden = !signup;
+      loginTab.classList.toggle("active", !signup);
+      signupTab.classList.toggle("active", signup);
+      loginTab.setAttribute("aria-selected", String(!signup));
+      signupTab.setAttribute("aria-selected", String(signup));
+      authHeading.textContent = signup ? "Create account" : "Sign in";
+      authSubheading.textContent = signup
+        ? "Register a doctor account in the Medflow AI clinic workspace."
+        : "Use your clinic account to open the authorized workspace.";
+      showMessage();
+      window.setTimeout(() => {
+        document.getElementById(signup ? "signupName" : "loginEmail").focus();
+      }, 0);
+    }
+
+    function apiMessage(payload, fallback) {
+      if (typeof payload?.detail === "string") return payload.detail;
+      if (typeof payload?.error === "string") return payload.error;
+      return fallback;
+    }
+
+    async function submitRequest(url, payload, button, busyLabel) {
+      const originalLabel = button.textContent;
+      button.disabled = true;
+      button.textContent = busyLabel;
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(payload),
+          credentials: "same-origin",
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(apiMessage(data, "The request could not be completed."));
+        return data;
+      } finally {
+        button.disabled = false;
+        button.textContent = originalLabel;
+      }
+    }
+
+    loginTab.addEventListener("click", () => setMode("login"));
+    signupTab.addEventListener("click", () => setMode("signup"));
+    document.getElementById("openSignup").addEventListener("click", () => setMode("signup"));
+    document.getElementById("openLogin").addEventListener("click", () => setMode("login"));
+
+    document.getElementById("loginForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      showMessage();
+      try {
+        await submitRequest(
+          "/api/auth/login",
+          {
+            email: document.getElementById("loginEmail").value.trim().toLowerCase(),
+            password: document.getElementById("loginPassword").value,
+          },
+          document.getElementById("loginSubmit"),
+          "Signing in..."
+        );
+        window.location.assign("/workspace");
+      } catch (error) {
+        showMessage(error.message || "Unable to sign in.", "error");
+      }
+    });
+
+    document.getElementById("signupForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      showMessage();
+      const email = document.getElementById("signupEmail").value.trim().toLowerCase();
+      const password = document.getElementById("signupPassword").value;
+      const confirmation = document.getElementById("signupConfirm").value;
+      if (password !== confirmation) {
+        showMessage("The password confirmation does not match.", "error");
+        return;
+      }
+      try {
+        await submitRequest(
+          "/api/auth/signup",
+          {
+            full_name: document.getElementById("signupName").value.trim(),
+            email,
+            password,
+          },
+          document.getElementById("signupSubmit"),
+          "Creating account..."
+        );
+        document.getElementById("loginEmail").value = email;
+        document.getElementById("signupForm").reset();
+        setMode("login");
+        showMessage("Account created. Sign in with your new credentials.", "success");
+      } catch (error) {
+        showMessage(error.message || "Unable to create the account.", "error");
+      }
+    });
+
+    const requestedMode = new URLSearchParams(window.location.search).get("mode");
+    if (requestedMode === "signup") setMode("signup");
+  </script>
+<script src="/assets/vendor/lucide.min.js"></script><script src="/assets/icons.js"></script></body>
+</html>

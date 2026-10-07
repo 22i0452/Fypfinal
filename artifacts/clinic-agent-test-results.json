@@ -1,0 +1,254 @@
+{
+  "generated_at": "2026-07-28T08:08:28.233232+00:00",
+  "synthetic_data_only": true,
+  "summary": {
+    "passed": 26,
+    "failed": 0,
+    "total": 26
+  },
+  "tests": [
+    {
+      "id": "FLOW-01",
+      "name": "Existing MedFlow demo path still works",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_preconsolidation_regression.PreConsolidationRegressionTests",
+        "tests_run": 4
+      }
+    },
+    {
+      "id": "FLOW-02",
+      "name": "Illegal workflow transition is rejected",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_workflow_orchestrator.WorkflowOrchestratorTests.test_flow_02_illegal_transition_is_rejected",
+        "tests_run": 1
+      }
+    },
+    {
+      "id": "FLOW-03",
+      "name": "Consultation recording is blocked without consent",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_consultation_websocket.ConsultationWebSocketTests.test_flow_03_and_04_backend_blocks_then_allows_recording",
+        "tests_run": 1
+      }
+    },
+    {
+      "id": "FLOW-04",
+      "name": "Consultation recording is allowed with valid consent",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_consultation_websocket.ConsultationWebSocketTests.test_flow_03_and_04_backend_blocks_then_allows_recording",
+        "tests_run": 1
+      }
+    },
+    {
+      "id": "FLOW-05",
+      "name": "Duplicate appointment is prevented",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_appointment_service.AppointmentServiceTests.test_create_is_idempotent_and_duplicate_slot_is_prevented",
+        "tests_run": 1
+      }
+    },
+    {
+      "id": "FLOW-06",
+      "name": "Appointment can be rescheduled safely",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_appointment_service.AppointmentServiceTests.test_reschedule_and_cancel_lifecycle",
+        "tests_run": 1
+      }
+    },
+    {
+      "id": "FLOW-07",
+      "name": "Cancelled appointment cannot start consultation",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_appointment_service.AppointmentServiceTests.test_reschedule_and_cancel_lifecycle",
+        "tests_run": 1
+      }
+    },
+    {
+      "id": "FLOW-08",
+      "name": "Diarization preserves utterance IDs",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_transcript_identity.TranscriptIdentityTests.test_flow_08_diarization_assigns_stable_ids_and_marks_unknown",
+        "tests_run": 1
+      }
+    },
+    {
+      "id": "FLOW-09",
+      "name": "Translation preserves utterance IDs and speaker labels",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_transcript_identity.TranscriptIdentityTests.test_flow_09_translation_preserves_id_speaker_and_source_text",
+        "tests_run": 1
+      }
+    },
+    {
+      "id": "FLOW-10",
+      "name": "SOAP claims contain valid evidence references",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_clinic_extensions.ClinicExtensionTests.test_flow_10_and_11_soap_evidence_must_reference_known_utterances",
+        "tests_run": 1
+      }
+    },
+    {
+      "id": "FLOW-11",
+      "name": "Unknown evidence references are rejected",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_clinic_extensions.ClinicExtensionTests.test_flow_10_and_11_soap_evidence_must_reference_known_utterances",
+        "tests_run": 1
+      }
+    },
+    {
+      "id": "FLOW-12",
+      "name": "Unsupported clinical facts are flagged",
+      "status": "PASS",
+      "evidence": {
+        "issues": [
+          "unsupported_clinical_fact:medication_or_dosage",
+          "unsupported_clinical_fact:plan"
+        ]
+      }
+    },
+    {
+      "id": "FLOW-13",
+      "name": "AI-generated note starts as a draft",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_note_lifecycle.NoteLifecycleTests.test_draft_requires_submit_then_authenticated_doctor_approval",
+        "tests_run": 1
+      }
+    },
+    {
+      "id": "FLOW-14",
+      "name": "LLM output cannot approve a note",
+      "status": "PASS",
+      "evidence": {
+        "blocked_unapproved": true,
+        "approved_state": "APPROVED_BY_DOCTOR"
+      }
+    },
+    {
+      "id": "FLOW-15",
+      "name": "Authenticated doctor can approve a note",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_note_lifecycle.NoteLifecycleTests.test_draft_requires_submit_then_authenticated_doctor_approval",
+        "tests_run": 1
+      }
+    },
+    {
+      "id": "FLOW-16",
+      "name": "Editing an approved note creates an amendment",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_note_lifecycle.NoteLifecycleTests.test_editing_approved_note_creates_amendment_and_preserves_history",
+        "tests_run": 1
+      }
+    },
+    {
+      "id": "FLOW-17",
+      "name": "Pre-visit summary uses approved records only",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_clinic_extensions.ClinicExtensionTests.test_flow_17_previsit_summary_uses_approved_records_only",
+        "tests_run": 1
+      }
+    },
+    {
+      "id": "FLOW-18",
+      "name": "After-visit summary rejects an unapproved note",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_clinic_extensions.ClinicExtensionTests.test_flow_18_and_19_after_visit_requires_approval_and_preserves_source",
+        "tests_run": 1
+      }
+    },
+    {
+      "id": "FLOW-19",
+      "name": "After-visit summary preserves approved content",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_clinic_extensions.ClinicExtensionTests.test_flow_18_and_19_after_visit_requires_approval_and_preserves_source",
+        "tests_run": 1
+      }
+    },
+    {
+      "id": "FLOW-20",
+      "name": "ICD suggestion rejects an unapproved note",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_clinic_extensions.ClinicExtensionTests.test_flow_20_and_21_coding_requires_approval_evidence_and_human_review",
+        "tests_run": 1
+      }
+    },
+    {
+      "id": "FLOW-21",
+      "name": "ICD suggestion retains evidence and SUGGESTED state",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_clinic_extensions.ClinicExtensionTests.test_flow_20_and_21_coding_requires_approval_evidence_and_human_review",
+        "tests_run": 1
+      }
+    },
+    {
+      "id": "FLOW-22",
+      "name": "Receptionist cannot approve clinical notes",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_note_lifecycle.NoteLifecycleTests.test_receptionist_cannot_read_or_approve_clinical_note",
+        "tests_run": 1
+      }
+    },
+    {
+      "id": "FLOW-23",
+      "name": "Unauthorized user cannot access another patient",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_workflow_orchestrator.WorkflowOrchestratorTests.test_cross_patient_access_is_denied",
+        "tests_run": 1
+      }
+    },
+    {
+      "id": "FLOW-24",
+      "name": "JSON repository continues to support the current demo",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_domain_repositories.DomainRepositoryTests",
+        "tests_run": 4
+      }
+    },
+    {
+      "id": "FLOW-25",
+      "name": "FHIR mapping produces expected R4 resource structures",
+      "status": "PASS",
+      "evidence": {
+        "test": "tests.test_clinic_extensions.ClinicExtensionTests.test_flow_25_fhir_mapping_produces_expected_r4_resource_shapes",
+        "tests_run": 1
+      }
+    },
+    {
+      "id": "FLOW-26",
+      "name": "Temporary audio cleanup still works",
+      "status": "PASS",
+      "evidence": {
+        "metadata": {
+          "state": "AUDIO_DELETED",
+          "consent_recorded": false,
+          "retention_enabled": false,
+          "retention_days": 0,
+          "audio_ref": "",
+          "created_at": "2026-07-28T13:08:28",
+          "delete_after": ""
+        }
+      }
+    }
+  ]
+}

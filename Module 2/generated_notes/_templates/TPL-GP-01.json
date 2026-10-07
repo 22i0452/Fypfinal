@@ -1,0 +1,16 @@
+{
+  "active": true,
+  "created_at": "2026-09-09T14:49:48.297968Z",
+  "created_by_actor_id": "system",
+  "custom": false,
+  "name": "General Practice SOAP",
+  "sections": [
+    "chief_complaint",
+    "subjective",
+    "objective",
+    "assessment",
+    "plan",
+    "follow_up"
+  ],
+  "template_id": "TPL-GP-01"
+}

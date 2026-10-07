@@ -1,0 +1,1 @@
+- [Python dependency installs](python-runtime.md) — use a managed Python runtime when the base Nix Python lacks pip or rejects package writes.

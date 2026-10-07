@@ -1,0 +1,14 @@
+{
+  "active": true,
+  "created_at": "2026-09-09T14:49:48.298035Z",
+  "created_by_actor_id": "system",
+  "custom": true,
+  "name": "Custom Clinic Template",
+  "sections": [
+    "subjective",
+    "objective",
+    "assessment",
+    "plan"
+  ],
+  "template_id": "TPL-CUSTOM-01"
+}

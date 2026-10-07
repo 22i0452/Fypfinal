@@ -1,0 +1,69 @@
+from __future__ import annotations
+
+from enum import Enum
+
+from medflow.domain.enums import WorkflowState
+
+
+class WorkflowAction(str, Enum):
+    VERIFY_PATIENT = "VERIFY_PATIENT"
+    START_INTAKE = "START_INTAKE"
+    COMPLETE_INTAKE = "COMPLETE_INTAKE"
+    REQUIRE_BOOKING = "REQUIRE_BOOKING"
+    CONFIRM_BOOKING = "CONFIRM_BOOKING"
+    CHECK_IN = "CHECK_IN"
+    PREPARE_CONSULTATION = "PREPARE_CONSULTATION"
+    START_CONSULTATION = "START_CONSULTATION"
+    START_DOCUMENTATION = "START_DOCUMENTATION"
+    DOCUMENTATION_READY = "DOCUMENTATION_READY"
+    APPROVE_NOTE = "APPROVE_NOTE"
+    COMPLETE_ENCOUNTER = "COMPLETE_ENCOUNTER"
+    CANCEL = "CANCEL"
+    MARK_FAILED = "MARK_FAILED"
+    REQUEST_HUMAN_ASSISTANCE = "REQUEST_HUMAN_ASSISTANCE"
+    RESUME = "RESUME"
+    RETRY_DOCUMENTATION = "RETRY_DOCUMENTATION"
+
+
+STANDARD_TRANSITIONS: dict[tuple[WorkflowState, WorkflowAction], WorkflowState] = {
+    (WorkflowState.PATIENT_UNVERIFIED, WorkflowAction.VERIFY_PATIENT): WorkflowState.PATIENT_VERIFIED,
+    (WorkflowState.PATIENT_VERIFIED, WorkflowAction.START_INTAKE): WorkflowState.INTAKE_IN_PROGRESS,
+    (WorkflowState.INTAKE_IN_PROGRESS, WorkflowAction.COMPLETE_INTAKE): WorkflowState.INTAKE_COMPLETED,
+    (WorkflowState.INTAKE_COMPLETED, WorkflowAction.REQUIRE_BOOKING): WorkflowState.BOOKING_REQUIRED,
+    (WorkflowState.BOOKING_REQUIRED, WorkflowAction.CONFIRM_BOOKING): WorkflowState.BOOKING_CONFIRMED,
+    (WorkflowState.BOOKING_CONFIRMED, WorkflowAction.CHECK_IN): WorkflowState.PATIENT_CHECKED_IN,
+    (WorkflowState.PATIENT_CHECKED_IN, WorkflowAction.PREPARE_CONSULTATION): WorkflowState.CONSULTATION_READY,
+    (WorkflowState.CONSULTATION_READY, WorkflowAction.START_CONSULTATION): WorkflowState.CONSULTATION_ACTIVE,
+    (WorkflowState.CONSULTATION_ACTIVE, WorkflowAction.START_DOCUMENTATION): WorkflowState.DOCUMENTATION_PROCESSING,
+    (WorkflowState.DOCUMENTATION_PROCESSING, WorkflowAction.DOCUMENTATION_READY): WorkflowState.NOTE_REVIEW_REQUIRED,
+    (WorkflowState.NOTE_REVIEW_REQUIRED, WorkflowAction.APPROVE_NOTE): WorkflowState.NOTE_APPROVED,
+    (WorkflowState.NOTE_APPROVED, WorkflowAction.COMPLETE_ENCOUNTER): WorkflowState.ENCOUNTER_COMPLETED,
+}
+
+
+TERMINAL_STATES = {
+    WorkflowState.ENCOUNTER_COMPLETED,
+    WorkflowState.CANCELLED,
+}
+
+
+EARLY_ACTIONS = {
+    WorkflowAction.VERIFY_PATIENT,
+    WorkflowAction.START_INTAKE,
+    WorkflowAction.COMPLETE_INTAKE,
+    WorkflowAction.REQUIRE_BOOKING,
+    WorkflowAction.CONFIRM_BOOKING,
+    WorkflowAction.CHECK_IN,
+}
+
+
+CLINICAL_ACTIONS = {
+    WorkflowAction.RETRY_DOCUMENTATION,
+    WorkflowAction.CHECK_IN,
+    WorkflowAction.PREPARE_CONSULTATION,
+    WorkflowAction.START_CONSULTATION,
+    WorkflowAction.START_DOCUMENTATION,
+    WorkflowAction.DOCUMENTATION_READY,
+    WorkflowAction.APPROVE_NOTE,
+    WorkflowAction.COMPLETE_ENCOUNTER,
+}

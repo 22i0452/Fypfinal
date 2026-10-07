@@ -1,0 +1,70 @@
+{
+  "clinic": {
+    "clinic_id": "CLINIC-DEMO-001",
+    "name": "MedFlowAI Demo Clinic",
+    "timezone": "Asia/Karachi",
+    "booking_horizon_days": 60,
+    "minimum_advance_booking_minutes": 120,
+    "slot_duration_minutes": 30
+  },
+  "location": {
+    "location_id": "LOC-ISB-001",
+    "clinic_id": "CLINIC-DEMO-001",
+    "name": "Islamabad Main Branch",
+    "address": "Islamabad, Pakistan"
+  },
+  "departments": [
+    {"department_id": "DEP-GM", "name": "General Medicine"},
+    {"department_id": "DEP-CAR", "name": "Cardiology"},
+    {"department_id": "DEP-PED", "name": "Pediatrics"}
+  ],
+  "development_providers": [
+    {
+      "practitioner_id": "DOC-DEV-002",
+      "display_name": "Dr. Ayesha Khan",
+      "department_id": "DEP-GM",
+      "location_id": "LOC-ISB-001"
+    },
+    {
+      "practitioner_id": "DOC-DEV-003",
+      "display_name": "Dr. Bilal Ahmed",
+      "department_id": "DEP-CAR",
+      "location_id": "LOC-ISB-001"
+    },
+    {
+      "practitioner_id": "DOC-DEV-004",
+      "display_name": "Dr. Sara Malik",
+      "department_id": "DEP-PED",
+      "location_id": "LOC-ISB-001"
+    }
+  ],
+  "visit_types": [
+    {
+      "visit_type_id": "VISIT-NEW",
+      "name": "New Patient Consultation",
+      "mode": "IN_PERSON",
+      "duration_minutes": 30
+    },
+    {
+      "visit_type_id": "VISIT-FOLLOWUP",
+      "name": "Follow-up Consultation",
+      "mode": "IN_PERSON",
+      "duration_minutes": 30
+    },
+    {
+      "visit_type_id": "VISIT-TELE",
+      "name": "Teleconsultation",
+      "mode": "REMOTE",
+      "duration_minutes": 30
+    }
+  ],
+  "working_hours": {
+    "MONDAY": [["09:00", "17:00"]],
+    "TUESDAY": [["09:00", "17:00"]],
+    "WEDNESDAY": [["09:00", "17:00"]],
+    "THURSDAY": [["09:00", "17:00"]],
+    "FRIDAY": [["09:00", "12:30"], ["14:30", "17:00"]],
+    "SATURDAY": [["09:00", "14:00"]],
+    "SUNDAY": []
+  }
+}

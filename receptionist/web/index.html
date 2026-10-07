@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Medflow AI | Receptionist</title>
+<link href="/branding/icon" rel="icon" type="image/png"/>
+<link href="/assets/ui.css?v=20261007-studio" rel="stylesheet"/>
+<link href="/receptionist-static/receptionist.css?v=20261007-studio" rel="stylesheet"/>
+</head>
+<body class="receptionist-body">
+<div class="app-shell receptionist-shell">
+<aside class="sidebar glass">
+<div class="brand"><button aria-label="Medflow reception" class="brand-link" onclick="showView('intake')"><span class="brand-mark"><i data-lucide="audio-lines"></i></span><span class="brand-title">medflow<span class="brand-edition">RECEPTION STUDIO</span></span></button></div>
+<div class="nav-block">
+<div class="nav-label">Reception</div>
+<button aria-label="Intake" class="nav-item active" id="navIntake" onclick="showView('intake')" title="Intake" type="button"><i data-lucide="clipboard"></i><span>Intake</span></button>
+<button aria-label="Call studio" class="nav-item" id="navDemo" onclick="showView('demo')" title="Call studio" type="button"><i data-lucide="phone"></i><span>Call studio</span></button>
+<button aria-label="Live calls" class="nav-item" id="navLive" onclick="showView('live')" title="Live calls" type="button"><i data-lucide="headset"></i><span>Live calls</span><span hidden="" id="liveNavHint"></span></button>
+</div>
+<div class="reception-connection">
+<small>Clinic connection</small>
+<strong id="backendStatus">Checking…</strong>
+<p id="backendHint">Desk APIs run on this same Medflow server.</p>
+</div>
+<div class="sidebar-bottom"><a class="nav-item" href="/workspace"><i data-lucide="stethoscope"></i><span>Doctor workspace</span></a></div></aside>
+<main class="main-shell">
+<header class="topbar">
+<div class="topbar-title">
+<div class="eyebrow"><span class="eyebrow-dot"></span><span>RECEPTION STUDIO</span></div>
+<h1>A thoughtful welcome.</h1>
+</div>
+<div class="topbar-actions">
+<div class="status-pill" id="sessionStatus">Ready</div>
+<button class="note-action" onclick="resetSession()" type="button">New session</button>
+</div>
+</header>
+<section class="view active receptionist-view" id="viewIntake">
+<div class="receptionist-layout">
+
+<article class="panel-card glass form-panel">
+<div class="workspace-header" style="margin-bottom:14px;">
+<div>
+<div class="section-kicker">Patient Information</div>
+<h3>Begin with the patient.</h3>
+<p>Patient details, appointment, then a clear doctor handoff.</p>
+</div>
+<div class="summary-pill" id="progressPill">0 / 10</div>
+</div>
+<form class="intake-form" data-step="0" id="intakeForm" novalidate="novalidate" onsubmit="submitIntake(event)"><nav aria-label="Intake progress" class="intake-progress"><span class="active" id="intakeStepPatient">01 · Patient</span><span id="intakeStepBooking">02 · Appointment</span><span id="intakeStepHandoff">03 · Handoff</span></nav>
+<div class="form-grid">
+<label class="auth-field" data-intake-stage="0">
+<span>Full name / نام</span>
+<input id="fieldName" minlength="2" placeholder="e.g. Ahmed Khan" required="" type="text"/>
+</label>
+<label class="auth-field" data-intake-stage="0">
+<span>Age / عمر</span>
+<input id="fieldAge" placeholder="e.g. 35" required="" type="text"/>
+</label>
+<label class="auth-field" data-intake-stage="0">
+<span>Phone / فون نمبر</span>
+<input id="fieldPhone" placeholder="03XXXXXXXXX" required="" type="text"/>
+</label>
+<label class="auth-field" data-intake-stage="0">
+<span>First visit? / پہلی بار</span>
+<select id="fieldFirstVisit" required="">
+<option value="yes">Yes / ہاں</option>
+<option value="no">No / نہیں</option>
+</select>
+</label>
+<label class="auth-field full" data-intake-stage="0">
+<span>Past medical history / پچھلی بیماریاں</span>
+<textarea id="fieldHistory" placeholder="None / کوئی نہیں" required="" rows="2"></textarea>
+</label>
+<label class="auth-field full" data-intake-stage="0">
+<span>Today's complaint / آج کی شکایت</span>
+<textarea id="fieldComplaint" placeholder="Describe the main problem" required="" rows="2"></textarea>
+</label>
+<label class="auth-field" data-intake-stage="1">
+<span>Department / شعبہ</span>
+<select id="fieldDepartment" onchange="onDepartmentChange()" required=""></select>
+</label>
+<label class="auth-field" data-intake-stage="1">
+<span>Doctor / ڈاکٹر</span>
+<select id="fieldDoctor" onchange="onDoctorChange()" required=""></select>
+</label>
+<label class="auth-field" data-intake-stage="1">
+<span>Visit type / ملاقات کی قسم</span>
+<select id="fieldVisitType" onchange="loadSlots()" required=""></select>
+</label>
+<label class="auth-field" data-intake-stage="1">
+<span>Booking slot / بکنگ وقت</span>
+<select id="fieldSlot" required="">
+<option value="">Select department &amp; doctor first</option>
+</select>
+</label>
+</div>
+<div class="form-actions"><button class="note-action" hidden="" id="intakeBack" onclick="setIntakeStage(0)" type="button"><i data-lucide="arrow-left"></i>Back</button><button class="toolbar-btn primary" id="intakeNext" onclick="continueIntake()" type="button">Choose appointment<i data-lucide="arrow-right"></i></button>
+<button class="note-action" onclick="loadSlots()" type="button">Refresh slots</button>
+<button class="toolbar-btn primary" id="submitBtn" type="submit">Send doctor handoff<i data-lucide="arrow-right"></i></button>
+</div>
+</form>
+<div class="booking-result" hidden="" id="bookingResult"></div>
+</article>
+<article class="panel-card glass chat-panel">
+<div class="workspace-header" style="margin-bottom:14px;">
+<div>
+<div class="section-kicker">Conversation</div>
+<h3>Handoff activity</h3>
+<p>Intake and booking updates.</p>
+</div>
+</div>
+<div class="chat-thread" id="chatThread">
+<div class="live-empty" id="chatEmptyHint">Intake and booking activity appears here.</div>
+</div>
+</article></div>
+</section>
+<section class="view receptionist-view" hidden="" id="viewDemo">
+<div class="demo-layout">
+<article class="panel-card glass demo-scenarios-panel">
+<div class="workspace-header" style="margin-bottom:14px;">
+<div>
+<div class="section-kicker">Demo Call</div>
+<h3>Call studio</h3>
+<p>Choose a conversation to test with Samra.</p>
+</div>
+</div>
+<div class="demo-direction-tabs" role="tablist">
+<button class="demo-tab active" id="demoTabInbound" onclick="setDemoDirection('inbound')" type="button">Inbound</button>
+<button class="demo-tab" id="demoTabOutbound" onclick="setDemoDirection('outbound')" type="button">Outbound</button>
+</div>
+<div class="demo-scenario-list" id="demoScenarioList"></div>
+</article>
+<article class="panel-card glass demo-runner-panel">
+<div class="workspace-header" style="margin-bottom:14px;">
+<div>
+<div class="section-kicker">Live demo agent</div>
+<h3 id="demoRunnerTitle">Select a scenario</h3>
+<p id="demoRunnerMeta">Start the demo, then type or speak as the caller. Samra replies in real time.</p>
+</div>
+<div class="summary-pill" id="demoDirectionPill">Inbound</div>
+</div>
+<div class="demo-runner-meta" hidden="" id="demoRunnerDetails">
+<p id="demoRunnerDescription"></p>
+<div aria-label="Demo mode" class="demo-mode-tabs" role="tablist">
+<button class="demo-tab active" id="demoModeChat" onclick="setDemoMode('chat')" type="button">Chat demo</button>
+<button class="demo-tab" id="demoModeVoice" onclick="setDemoMode('voice')" type="button">Voice call</button>
+</div>
+<div class="demo-runner-actions">
+<button class="toolbar-btn primary" id="demoRunBtn" onclick="runSelectedDemo()" type="button">Start chat demo</button>
+<button class="toolbar-btn primary" id="demoVoiceBtn" onclick="runSelectedDemoVoice()" type="button">Start voice call</button>
+<button class="note-action" hidden="" id="demoStopBtn" onclick="endDemo()" type="button">End demo</button>
+<button class="note-action" hidden="" id="demoLiveBtn" onclick="showView('live')" type="button">Open phone live calls</button>
+</div>
+</div>
+<div class="demo-transcript" id="demoTranscript">
+<div class="live-empty">Choose a scenario on the left, then start a live interactive demo.</div>
+</div>
+<div class="booking-result demo-result" hidden="" id="demoResult"></div>
+<form class="demo-composer" hidden="" id="demoComposer" onsubmit="sendDemoMessage(event)">
+<input autocomplete="off" id="demoInput" placeholder="Type your reply as the caller…" type="text"/>
+<button class="note-action" id="demoMicBtn" onclick="toggleDemoMic()" type="button">Mic</button>
+<button class="toolbar-btn primary" id="demoSendBtn" type="submit">Send</button>
+</form>
+<p class="demo-voice-hint" hidden="" id="demoVoiceHint">Voice call: Samra speaks Urdu (TTS). Tap Mic to reply — STT → LLM → TTS.</p>
+</article>
+</div>
+</section>
+<section class="view receptionist-view" hidden="" id="viewLive">
+<div class="live-layout">
+<article class="panel-card glass live-list-panel">
+<div class="workspace-header" style="margin-bottom:14px;">
+<div>
+<div class="section-kicker">Telephony</div>
+<h3>Live ongoing calls</h3>
+<p id="liveClinicHint">Call the clinic number to start an inbound Urdu session.</p>
+</div>
+<div class="summary-pill" id="liveCountPill">0 live</div>
+</div>
+<div class="live-call-list" id="liveCallList"></div>
+</article>
+<article class="panel-card glass live-transcript-panel">
+<div class="workspace-header" style="margin-bottom:14px;">
+<div>
+<div class="section-kicker">Transcript</div>
+<h3 id="liveTranscriptTitle">Select a call</h3>
+<p id="liveTranscriptMeta">Live patient ↔ Samra dialogue appears here.</p>
+</div>
+</div>
+<div class="live-transcript" id="liveTranscript"></div>
+</article>
+</div>
+</section>
+</main>
+</div>
+<div class="toast" id="toast"></div>
+<script src="/receptionist-static/app.js?v=20261007-studio"></script>
+<script src="/assets/vendor/lucide.min.js"></script><script src="/receptionist-static/studio.js"></script><script src="/assets/icons.js"></script></body>
+</html>

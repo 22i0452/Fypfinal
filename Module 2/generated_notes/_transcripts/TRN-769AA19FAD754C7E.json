@@ -1,0 +1,20 @@
+{
+  "created_at": "2026-09-09T15:51:49.667020Z",
+  "encounter_id": "ENC-EC6D9BB0D00F496C",
+  "patient_id": "PT-DEMO-SYNTHETIC-002",
+  "transcript_id": "TRN-769AA19FAD754C7E",
+  "utterances": [
+    {
+      "clinical_english": "[Translation needed] Tanscribe only exact spoken words. اوہ چھوڑ یار بڑی پوٹی چیز آئی ہے ذہن میں ہاں یہ ادھوم ہے نا اف ای پی میرا ادھوم ہے مسئلہ ہی ہے تو یہ درد کیسے شروع ہوا",
+      "confidence": null,
+      "end_ms": null,
+      "needs_review": true,
+      "original_text": "Tanscribe only exact spoken words. اوہ چھوڑ یار بڑی پوٹی چیز آئی ہے ذہن میں ہاں یہ ادھوم ہے نا اف ای پی میرا ادھوم ہے مسئلہ ہی ہے تو یہ درد کیسے شروع ہوا",
+      "segment_id": null,
+      "speaker": "UNKNOWN",
+      "start_ms": null,
+      "transcript_id": "TRN-769AA19FAD754C7E",
+      "utterance_id": "U1"
+    }
+  ]
+}

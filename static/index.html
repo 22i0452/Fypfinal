@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="ur" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🏥 طبی کلینک رسیپشنسٹ ایجنٹ | Medical Clinic Receptionist</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#EEF0F3;--header:#FFFFFF;--sidebar:#061C3A;--chat:#EEF0F3;
+  --agent-bubble:#FFFFFF;--patient-bubble:#EAF1FB;--field-row:#FFFFFF;
+  --divider:#D9DEE7;--accent:#0A2240;--accent2:#3F6EA4;
+  --text:#1F2937;--text2:#6B7280;
+  --listening:#16A34A;--processing:#D97706;--speaking:#2563EB;
+  --idle:#6B7280;--complete:#16A34A;--error:#DC2626;
+}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden;direction:ltr}
+
+.header{background:var(--header);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;min-height:72px;border-bottom:1px solid var(--divider)}
+.header-left{display:flex;align-items:center;gap:12px}
+.header-icon{font-size:36px}
+.header-titles h1{font-size:18px;color:var(--accent);font-weight:700;margin-bottom:2px}
+.header-titles p{font-size:11px;color:var(--text2)}
+.header-right{display:flex;align-items:center;gap:10px}
+.avatar{width:48px;height:48px;border-radius:50%;background:#1E88B5;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:#fff}
+.agent-name{font-size:14px;font-weight:700}
+.agent-badge{font-size:10px;color:var(--idle)}
+
+.body{display:flex;flex:1;overflow:hidden}
+
+.chat-pane{flex:1;display:flex;flex-direction:column;background:var(--chat)}
+.chat-header{padding:10px 20px 4px;display:flex;justify-content:space-between;align-items:center}
+.chat-header span{font-size:12px;font-weight:700;color:var(--text2)}
+.chat-header .turn{font-size:10px;color:var(--text2)}
+.chat-area{flex:1;overflow-y:auto;padding:8px 16px;display:flex;flex-direction:column;gap:10px}
+.chat-area::-webkit-scrollbar{width:6px}
+.chat-area::-webkit-scrollbar-track{background:transparent}
+.chat-area::-webkit-scrollbar-thumb{background:var(--divider);border-radius:3px}
+
+.msg-row{display:flex;align-items:flex-start;gap:8px}
+.msg-row.agent{justify-content:flex-start}
+.msg-row.patient{justify-content:flex-end}
+.msg-avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0}
+.msg-avatar.agent-av{background:#0A2240;color:#fff}
+.msg-avatar.patient-av{background:#DCE4EF;color:#4B5563}
+.msg-bubble{max-width:520px;border-radius:14px;padding:10px 16px 10px 16px;border:1px solid var(--divider)}
+.msg-bubble.agent-bg{background:var(--agent-bubble)}
+.msg-bubble.patient-bg{background:var(--patient-bubble)}
+.msg-name{font-size:10px;font-weight:700;margin-bottom:4px}
+.msg-name.agent-n{color:#0A2240}
+.msg-name.patient-n{color:#4B5563}
+.msg-text{font-size:14px;line-height:1.6;direction:rtl;text-align:right}
+.msg-time{font-size:8px;color:#1E293B;margin-top:3px}
+
+.controls{padding:12px 20px;background:var(--chat);border-top:1px solid var(--divider);display:flex;align-items:center;gap:12px;justify-content:center}
+#micBtn{width:64px;height:64px;border-radius:50%;border:3px solid var(--accent);background:transparent;color:var(--accent);font-size:26px;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center}
+#micBtn:hover{background:rgba(10,34,64,.08)}
+#micBtn.recording{background:#ef4444;border-color:#ef4444;color:#fff;animation:pulse 1s infinite}
+#micBtn:disabled{opacity:.3;cursor:not-allowed}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.controls-hint{font-size:10px;color:var(--text2)}
+#typingArea{display:flex;gap:8px;flex:1;max-width:500px}
+#textInput{flex:1;background:#fff;border:1px solid var(--divider);border-radius:8px;padding:8px 14px;color:var(--text);font-size:13px;direction:rtl;outline:none}
+#textInput:focus{border-color:var(--accent)}
+#sendBtn{background:var(--accent);color:#000;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer}
+#sendBtn:disabled{opacity:.3;cursor:not-allowed}
+.mode-toggle{font-size:10px;color:var(--accent);cursor:pointer;text-decoration:underline;background:none;border:none}
+
+.sidebar{width:280px;background:var(--sidebar);overflow-y:auto;flex-shrink:0;padding:0 0 16px}
+.sidebar-title{padding:16px 16px 2px;font-size:13px;font-weight:700;color:#F8FAFC}
+.sidebar-subtitle{padding:0 16px;font-size:11px;color:#AFC2DA}
+.sidebar-divider{height:1px;background:var(--divider);margin:10px 14px}
+.field-card{background:var(--field-row);border-radius:8px;margin:4px 12px;padding:8px 12px;display:flex;align-items:flex-start;gap:8px}
+.field-dot{font-size:15px;color:var(--idle);width:22px;text-align:center;flex-shrink:0;margin-top:2px}
+.field-dot.done{color:var(--complete)}
+.field-info{flex:1}
+.field-label{font-size:11px;font-weight:700;display:flex;gap:6px;align-items:center;color:#0F172A}
+.field-label .en{font-size:9px;color:#64748B;font-weight:400}
+.field-value{font-size:10px;color:var(--text2);margin-top:2px;direction:rtl;text-align:right}
+.field-value.filled{color:var(--text)}
+.bp-input{width:100%;margin-top:6px;border:1px solid var(--divider);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--text);background:#fff;outline:none}
+.bp-input:focus{border-color:var(--accent2)}
+.progress-section{padding:0 16px;margin-top:10px}
+.progress-label{font-size:10px;color:var(--text2);margin-bottom:4px}
+.progress-bar{height:8px;background:var(--divider);border-radius:4px;overflow:hidden}
+.progress-fill{height:100%;background:var(--accent);border-radius:4px;transition:width .4s ease}
+.progress-text{font-size:9px;color:#AFC2DA;margin-top:3px}
+.tech-stack{padding:0 16px;margin-top:14px}
+.tech-stack p{font-size:8px;color:#AFC2DA}
+
+.status-bar{background:#FFFFFF;border-top:1px solid var(--divider);padding:8px 20px;display:flex;align-items:center;justify-content:space-between;min-height:36px}
+.status-left{display:flex;align-items:center;gap:6px}
+.status-dot{font-size:16px;color:var(--idle)}
+.status-label{font-size:11px;color:var(--text2)}
+.status-right{font-size:8px;color:#6B7280}
+
+.new-session-btn{background:var(--accent);color:#000;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:600;cursor:pointer;margin-left:12px}
+.complete-banner{background:var(--complete);color:#000;text-align:center;padding:10px;font-size:14px;font-weight:700;display:none}
+
+@media(max-width:800px){
+  .sidebar{display:none}
+  .msg-bubble{max-width:85vw}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <span class="header-icon">🏥</span>
+    <div class="header-titles">
+      <h1>طبی کلینک رسیپشنسٹ ایجنٹ</h1>
+      <p>Urdu Medical Receptionist Agent</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="avatar">ث</div>
+    <div>
+      <div class="agent-name">ثمرہ</div>
+      <div class="agent-badge" id="agentBadge">● Initializing</div>
+    </div>
+  </div>
+</div>
+
+<div id="completeBanner" class="complete-banner">✅ Session Complete! / مکمل — Patient record saved</div>
+
+<div class="body">
+  <div class="chat-pane">
+    <div class="chat-header">
+      <span>💬 Conversation / گفتگو</span>
+      <span class="turn" id="turnLabel">Turn 0</span>
+    </div>
+    <div class="chat-area" id="chatArea"></div>
+    <div class="controls">
+      <div id="voiceControls">
+        <div style="display:flex;align-items:center;gap:12px">
+          <button id="micBtn" title="Hold to record">🎤</button>
+          <div>
+            <div class="controls-hint" id="micHint">Hold to record / ریکارڈ کرنے کے لیے دبائیں</div>
+            <button class="mode-toggle" id="toggleMode">Switch to typing mode</button>
+          </div>
+        </div>
+      </div>
+      <div id="typingControls" style="display:none">
+        <div style="display:flex;align-items:center;gap:8px;width:100%">
+          <div id="typingArea">
+            <input type="text" id="textInput" placeholder="اردو میں لکھیں…" dir="rtl">
+            <button id="sendBtn">بھیجیں</button>
+          </div>
+          <button class="mode-toggle" id="toggleMode2">Switch to voice mode</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="sidebar-title">📋 Patient Information</div>
+    <div class="sidebar-subtitle">مریض کی معلومات</div>
+    <div class="sidebar-divider"></div>
+
+    <div class="field-card" id="field-نام">
+      <span class="field-dot" id="dot-نام">○</span>
+      <div class="field-info">
+        <div class="field-label">👤 نام <span class="en">Full Name</span></div>
+        <div class="field-value" id="val-نام">—</div>
+      </div>
+    </div>
+    <div class="field-card" id="field-عمر">
+      <span class="field-dot" id="dot-عمر">○</span>
+      <div class="field-info">
+        <div class="field-label">🎂 عمر <span class="en">Age</span></div>
+        <div class="field-value" id="val-عمر">—</div>
+      </div>
+    </div>
+    <div class="field-card" id="field-فون_نمبر">
+      <span class="field-dot" id="dot-فون_نمبر">○</span>
+      <div class="field-info">
+        <div class="field-label">📱 فون نمبر <span class="en">Phone</span></div>
+        <div class="field-value" id="val-فون_نمبر">—</div>
+      </div>
+    </div>
+    <div class="field-card" id="field-پہلی_بار">
+      <span class="field-dot" id="dot-پہلی_بار">○</span>
+      <div class="field-info">
+        <div class="field-label">🏥 پہلی بار <span class="en">First Visit</span></div>
+        <div class="field-value" id="val-پہلی_بار">—</div>
+      </div>
+    </div>
+    <div class="field-card" id="field-پچھلی_بیماریاں">
+      <span class="field-dot" id="dot-پچھلی_بیماریاں">○</span>
+      <div class="field-info">
+        <div class="field-label">📜 پچھلی بیماریاں <span class="en">Medical History</span></div>
+        <div class="field-value" id="val-پچھلی_بیماریاں">—</div>
+      </div>
+    </div>
+    <div class="field-card" id="field-آج_کی_شکایت">
+      <span class="field-dot" id="dot-آج_کی_شکایت">○</span>
+      <div class="field-info">
+        <div class="field-label">🩺 آج کی شکایت <span class="en">Today's Complaint</span></div>
+        <div class="field-value" id="val-آج_کی_شکایت">—</div>
+      </div>
+    </div>
+    <div class="field-card" id="field-بکنگ_کا_وقت">
+      <span class="field-dot" id="dot-بکنگ_کا_وقت">○</span>
+      <div class="field-info">
+        <div class="field-label">📅 بکنگ وقت <span class="en">Booking Slot</span></div>
+        <div class="field-value" id="val-بکنگ_کا_وقت">—</div>
+      </div>
+    </div>
+
+    <div class="field-card" id="field-blood-pressure">
+      <div class="field-info">
+        <div class="field-label">🫀 بلڈ پریشر <span class="en">Blood Pressure</span></div>
+        <input class="bp-input" id="bpInput" type="text" placeholder="e.g. 120/80 mmHg">
+      </div>
+    </div>
+
+    <div class="sidebar-divider"></div>
+    <div class="progress-section">
+      <div class="progress-label">Progress</div>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+      <div class="progress-text" id="progressText">0 / 7 fields collected</div>
+    </div>
+
+    <div class="sidebar-divider" style="margin-top:14px"></div>
+    <div class="tech-stack">
+      <p>STT: Groq Whisper large-v3</p>
+      <p>LLM: LLaMA 3.3-70B</p>
+      <p>TTS: Edge TTS ur-PK-UzmaNeural</p>
+    </div>
+
+    <div style="padding:16px">
+      <button class="new-session-btn" id="resetBtn" style="width:100%">🔄 New Session / نیا سیشن</button>
+    </div>
+  </div>
+</div>
+
+<div class="status-bar">
+  <div class="status-left">
+    <span class="status-dot" id="statusDot">○</span>
+    <span class="status-label" id="statusLabel">Initializing…</span>
+  </div>
+  <div class="status-right">Groq Whisper v3 • LLaMA 3.3-70B • Edge TTS (ur-PK-UzmaNeural)</div>
+</div>
+
+<script>
+const FIELDS = ['نام','عمر','فون_نمبر','پہلی_بار','پچھلی_بیماریاں','آج_کی_شکایت','بکنگ_کا_وقت'];
+let turnCount = 0;
+let isProcessing = false;
+let sessionComplete = false;
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+let voiceMode = true;
+
+const chatArea = document.getElementById('chatArea');
+const micBtn = document.getElementById('micBtn');
+const micHint = document.getElementById('micHint');
+const turnLabel = document.getElementById('turnLabel');
+const statusDot = document.getElementById('statusDot');
+const statusLabel = document.getElementById('statusLabel');
+const agentBadge = document.getElementById('agentBadge');
+const progressFill = document.getElementById('progressFill');
+const progressText = document.getElementById('progressText');
+const completeBanner = document.getElementById('completeBanner');
+const resetBtn = document.getElementById('resetBtn');
+const textInput = document.getElementById('textInput');
+const sendBtn = document.getElementById('sendBtn');
+const voiceControls = document.getElementById('voiceControls');
+const typingControls = document.getElementById('typingControls');
+const toggleMode = document.getElementById('toggleMode');
+const toggleMode2 = document.getElementById('toggleMode2');
+const bpInput = document.getElementById('bpInput');
+
+function setStatus(state, label, color) {
+  const dotChars = {listening:'◉',processing:'◌',speaking:'◉',idle:'○',complete:'◉'};
+  statusDot.textContent = dotChars[state] || '○';
+  statusDot.style.color = color;
+  statusLabel.textContent = label;
+  statusLabel.style.color = color;
+  agentBadge.textContent = '● ' + state.charAt(0).toUpperCase() + state.slice(1);
+  agentBadge.style.color = color;
+}
+
+function timeNow() {
+  return new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false});
+}
+
+function addBubble(text, role) {
+  if (role === 'patient') {
+    turnCount++;
+    turnLabel.textContent = 'Turn ' + turnCount;
+  }
+  const isAgent = role === 'agent';
+  const row = document.createElement('div');
+  row.className = 'msg-row ' + role;
+
+  if (isAgent) {
+    const av = document.createElement('div');
+    av.className = 'msg-avatar agent-av';
+    av.textContent = 'ث';
+    row.appendChild(av);
+  }
+
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble ' + (isAgent ? 'agent-bg' : 'patient-bg');
+
+  const name = document.createElement('div');
+  name.className = 'msg-name ' + (isAgent ? 'agent-n' : 'patient-n');
+  name.textContent = isAgent ? 'ثمرہ' : 'مریض';
+  bubble.appendChild(name);
+
+  const msgText = document.createElement('div');
+  msgText.className = 'msg-text';
+  msgText.textContent = text;
+  bubble.appendChild(msgText);
+
+  const time = document.createElement('div');
+  time.className = 'msg-time';
+  time.textContent = timeNow();
+  bubble.appendChild(time);
+
+  row.appendChild(bubble);
+
+  if (!isAgent) {
+    const av = document.createElement('div');
+    av.className = 'msg-avatar patient-av';
+    av.textContent = 'م';
+    row.appendChild(av);
+  }
+
+  chatArea.appendChild(row);
+  chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+function updatePatientInfo(data) {
+  if (!data) return;
+  let filled = 0;
+  FIELDS.forEach(key => {
+    const val = data[key];
+    const dot = document.getElementById('dot-'+key);
+    const valEl = document.getElementById('val-'+key);
+    if (val && val.trim()) {
+      if (dot) { dot.textContent = '✓'; dot.classList.add('done'); }
+      if (valEl) { valEl.textContent = val; valEl.classList.add('filled'); }
+      filled++;
+    } else {
+      if (dot) { dot.textContent = '○'; dot.classList.remove('done'); }
+      if (valEl) { valEl.textContent = '—'; valEl.classList.remove('filled'); }
+    }
+  });
+  progressFill.style.width = (filled/FIELDS.length*100)+'%';
+  progressText.textContent = filled + ' / ' + FIELDS.length + ' fields collected';
+}
+
+async function playTTS(text) {
+  setStatus('speaking','🔊 Speaking… / بول رہی ہیں','#60A5FA');
+  try {
+    const resp = await fetch('/api/tts?text='+encodeURIComponent(text));
+    if (!resp.ok) throw new Error('TTS failed');
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    await new Promise((resolve) => {
+      audio.onended = resolve;
+      audio.onerror = resolve;
+      audio.play().catch(resolve);
+    });
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    console.error('TTS error:', e);
+  }
+  if (!sessionComplete) {
+    setStatus('idle','⏸ Ready','#4B5563');
+  }
+}
+
+async function handlePatientText(text) {
+  if (!text || !text.trim()) return;
+  isProcessing = true;
+  micBtn.disabled = true;
+  sendBtn.disabled = true;
+  addBubble(text, 'patient');
+
+  setStatus('processing','⚙️ Processing… / پروسیسنگ','#FBBF24');
+  try {
+    const resp = await fetch('/api/chat', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({text: text})
+    });
+    const data = await resp.json();
+    addBubble(data.reply, 'agent');
+
+    if (data.patient_data && Object.keys(data.patient_data).length > 0) {
+      updatePatientInfo(data.patient_data);
+    } else {
+      try {
+        const stateResp = await fetch('/api/state');
+        const stateData = await stateResp.json();
+        if (stateData.patient_data && Object.keys(stateData.patient_data).length > 0) {
+          updatePatientInfo(stateData.patient_data);
+        }
+      } catch(e) {}
+    }
+
+    if (data.complete) {
+      sessionComplete = true;
+      completeBanner.style.display = 'block';
+      micBtn.disabled = true;
+      sendBtn.disabled = true;
+      setStatus('complete','✅ Session Complete! / مکمل','#34D399');
+      await playTTS(data.reply);
+    } else {
+      await playTTS(data.reply);
+      if (mediaRecorder) micBtn.disabled = false;
+      sendBtn.disabled = false;
+    }
+  } catch(e) {
+    console.error('Chat error:', e);
+    setStatus('idle','⏸ Ready','#4B5563');
+    if (mediaRecorder) micBtn.disabled = false;
+    sendBtn.disabled = false;
+  }
+  isProcessing = false;
+}
+
+async function transcribeAndProcess(audioBlob) {
+  setStatus('processing','⚙️ Transcribing… / لکھا جا رہا ہے','#FBBF24');
+  try {
+    const formData = new FormData();
+    formData.append('file', audioBlob, 'audio.wav');
+    const resp = await fetch('/api/transcribe', {method:'POST', body:formData});
+    const data = await resp.json();
+    if (data.text && data.text.trim()) {
+      await handlePatientText(data.text);
+    } else {
+      addBubble('آپ کی آواز نہیں سنائی دی، براہ کرم دوبارہ بولیں۔', 'agent');
+      setStatus('idle','⏸ Ready','#4B5563');
+      micBtn.disabled = false;
+    }
+  } catch(e) {
+    console.error('Transcribe error:', e);
+    setStatus('idle','⏸ Ready','#4B5563');
+    micBtn.disabled = false;
+  }
+}
+
+async function initMic() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    mediaRecorder = new MediaRecorder(stream, {mimeType:'audio/webm;codecs=opus'});
+    mediaRecorder.ondataavailable = e => { if(e.data.size>0) audioChunks.push(e.data); };
+    mediaRecorder.onstop = async () => {
+      const blob = new Blob(audioChunks, {type:'audio/webm'});
+      audioChunks = [];
+      if (blob.size > 1000) {
+        await transcribeAndProcess(blob);
+      } else {
+        setStatus('idle','⏸ Ready','#4B5563');
+        micBtn.disabled = false;
+      }
+    };
+    return true;
+  } catch(e) {
+    console.error('Mic error:', e);
+    micHint.textContent = '⚠️ Microphone not available — use typing mode';
+    micBtn.disabled = true;
+    voiceMode = false;
+    voiceControls.style.display = 'none';
+    typingControls.style.display = 'flex';
+    return false;
+  }
+}
+
+function startRecording() {
+  if (isProcessing || sessionComplete || !mediaRecorder) return;
+  audioChunks = [];
+  mediaRecorder.start();
+  isRecording = true;
+  micBtn.classList.add('recording');
+  micBtn.textContent = '⏹';
+  micHint.textContent = 'Recording… release to send / ریکارڈنگ…';
+  setStatus('listening','🎤 Listening… / سنا جا رہا ہے','#34D399');
+}
+
+function stopRecording() {
+  if (!isRecording || !mediaRecorder) return;
+  mediaRecorder.stop();
+  isRecording = false;
+  micBtn.classList.remove('recording');
+  micBtn.textContent = '🎤';
+  micBtn.disabled = true;
+  micHint.textContent = 'Hold to record / ریکارڈ کرنے کے لیے دبائیں';
+}
+
+micBtn.addEventListener('mousedown', startRecording);
+micBtn.addEventListener('mouseup', stopRecording);
+micBtn.addEventListener('mouseleave', () => { if(isRecording) stopRecording(); });
+micBtn.addEventListener('touchstart', e => { e.preventDefault(); startRecording(); });
+micBtn.addEventListener('touchend', e => { e.preventDefault(); stopRecording(); });
+
+sendBtn.addEventListener('click', () => {
+  const text = textInput.value.trim();
+  if (!text || isProcessing || sessionComplete) return;
+  textInput.value = '';
+  handlePatientText(text);
+});
+textInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') sendBtn.click();
+});
+
+toggleMode.addEventListener('click', () => {
+  voiceControls.style.display = 'none';
+  typingControls.style.display = 'flex';
+});
+toggleMode2.addEventListener('click', () => {
+  typingControls.style.display = 'none';
+  voiceControls.style.display = 'block';
+});
+
+resetBtn.addEventListener('click', async () => {
+  resetBtn.disabled = true;
+  resetBtn.textContent = '⏳ Resetting…';
+  try {
+    const resp = await fetch('/api/reset', {method:'POST'});
+    const data = await resp.json();
+    chatArea.innerHTML = '';
+    turnCount = 0;
+    turnLabel.textContent = 'Turn 0';
+    sessionComplete = false;
+    isProcessing = false;
+    completeBanner.style.display = 'none';
+    FIELDS.forEach(key => {
+      const dot = document.getElementById('dot-'+key);
+      const val = document.getElementById('val-'+key);
+      if (dot) { dot.textContent = '○'; dot.classList.remove('done'); }
+      if (val) { val.textContent = '—'; val.classList.remove('filled'); }
+    });
+    progressFill.style.width = '0%';
+    progressText.textContent = '0 / ' + FIELDS.length + ' fields collected';
+    if (bpInput) bpInput.value = '';
+
+    addBubble(data.greeting, 'agent');
+    setStatus('idle','⏸ Ready','#4B5563');
+    if (mediaRecorder) micBtn.disabled = false;
+    sendBtn.disabled = false;
+    await playTTS(data.greeting);
+  } catch(e) {
+    console.error('Reset error:', e);
+  }
+  resetBtn.disabled = false;
+  resetBtn.textContent = '🔄 New Session / نیا سیشن';
+});
+
+async function init() {
+  setStatus('processing','⏳ Loading… / لوڈ ہو رہا ہے','#FBBF24');
+  await initMic();
+  try {
+    const resp = await fetch('/api/greeting');
+    const data = await resp.json();
+    addBubble(data.greeting, 'agent');
+    setStatus('idle','⏸ Ready','#4B5563');
+    if (mediaRecorder) micBtn.disabled = false;
+    sendBtn.disabled = false;
+    await playTTS(data.greeting);
+  } catch(e) {
+    console.error('Init error:', e);
+    setStatus('idle','⏸ Ready — greeting will load shortly','#4B5563');
+    if (mediaRecorder) micBtn.disabled = false;
+    sendBtn.disabled = false;
+  }
+}
+
+init();
+</script>
+</body>
+</html>

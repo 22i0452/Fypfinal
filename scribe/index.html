@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Medflow AI | Clinical Notes Workspace</title>
+<link href="/branding/icon" rel="icon" type="image/png"/>
+<link href="/assets/ui.css?v=20261007-studio" rel="stylesheet"/>
+</head>
+<body class="auth-locked">
+<section class="auth-shell">
+<div class="auth-stage">
+<article class="auth-showcase glass">
+<div>
+<div class="auth-logo-wrap">
+<img alt="Medflow AI logo" class="auth-logo" src="/branding/logo"/>
+</div>
+</div>
+<div class="auth-copy">
+<div class="auth-kicker">Secure healthcare workspace</div>
+<h1>Welcome to <span>Medflow AI</span></h1>
+<p>Access the clinical workspace designed for bilingual consultation capture, SOAP documentation, patient context review, and safer note generation.</p>
+</div>
+<div class="auth-footer">Workspace access is protected by the Medflow AI backend session.</div>
+</article>
+<article class="auth-card glass">
+<div class="auth-card-header">
+<h2 id="authHeading">Login</h2>
+<p id="authSubheading">Sign in to continue to your Medflow AI workspace.</p>
+</div>
+<div class="auth-tabs">
+<button class="auth-tab active" id="loginTabBtn" onclick="setAuthMode('login')" type="button">Login</button>
+<button class="auth-tab" id="signupTabBtn" onclick="setAuthMode('signup')" type="button">Sign Up</button>
+</div>
+<section class="auth-panel active" id="loginPanel">
+<div class="auth-mode-caption">Use your clinic account to open the authorized workspace.</div>
+<form class="auth-form" onsubmit="handleLogin(event)">
+<div class="auth-field">
+<label for="loginEmail">Email</label>
+<div class="auth-input-shell">
+<svg fill="currentColor" viewbox="0 0 24 24"><path d="M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 2v.01L12 12l8-4.99V7H4Zm16 10V9.31l-7.48 4.67a1 1 0 0 1-1.04 0L4 9.31V17h16Z"></path></svg>
+<input id="loginEmail" placeholder="you@clinic.com" required="" type="email"/>
+</div>
+</div>
+<div class="auth-field">
+<label for="loginPassword">Password</label>
+<div class="auth-input-shell">
+<svg fill="currentColor" viewbox="0 0 24 24"><path d="M17 8h-1V6a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4Zm7 12H7v-8h10Z"></path></svg>
+<input id="loginPassword" placeholder="Enter your password" required="" type="password"/>
+</div>
+</div>
+<div class="auth-meta-row">
+<label class="auth-check"><input checked="" id="rememberMe" type="checkbox"/>Remember me</label>
+<button class="auth-link" onclick="showToast('Password recovery can be connected next.')" type="button">Forgot password?</button>
+</div>
+<button class="auth-submit" type="submit">Login</button>
+</form>
+<div class="auth-note">Need a local account? <button onclick="setAuthMode('signup')" type="button">Create one now</button></div>
+</section>
+<section class="auth-panel" id="signupPanel">
+<div class="auth-mode-caption">Create a development doctor account in the Medflow AI backend.</div>
+<form class="auth-form" onsubmit="handleSignup(event)">
+<div class="auth-row">
+<div class="auth-field">
+<label for="signupName">Full Name</label>
+<div class="auth-input-shell">
+<svg fill="currentColor" viewbox="0 0 24 24"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-4.42 0-8 1.79-8 4v2h16v-2c0-2.21-3.58-4-8-4Z"></path></svg>
+<input id="signupName" placeholder="Dr. Shahzaib Ali" required="" type="text"/>
+</div>
+</div>
+<div class="auth-field">
+<label for="signupOrg">Clinic or Team</label>
+<div class="auth-input-shell">
+<svg fill="currentColor" viewbox="0 0 24 24"><path d="M4 21h16v-2H4Zm2-4h3V5H6Zm5 0h2V3h-2Zm4 0h3V9h-3Z"></path></svg>
+<input id="signupOrg" placeholder="Nectar Health" type="text"/>
+</div>
+</div>
+</div>
+<div class="auth-field">
+<label for="signupEmail">Email</label>
+<div class="auth-input-shell">
+<svg fill="currentColor" viewbox="0 0 24 24"><path d="M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 2v.01L12 12l8-4.99V7H4Zm16 10V9.31l-7.48 4.67a1 1 0 0 1-1.04 0L4 9.31V17h16Z"></path></svg>
+<input id="signupEmail" placeholder="you@clinic.com" required="" type="email"/>
+</div>
+</div>
+<div class="auth-row">
+<div class="auth-field">
+<label for="signupPassword">Password</label>
+<div class="auth-input-shell">
+<svg fill="currentColor" viewbox="0 0 24 24"><path d="M17 8h-1V6a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4Zm7 12H7v-8h10Z"></path></svg>
+<input id="signupPassword" placeholder="Create a password" required="" type="password"/>
+</div>
+</div>
+<div class="auth-field">
+<label for="signupConfirm">Confirm Password</label>
+<div class="auth-input-shell">
+<svg fill="currentColor" viewbox="0 0 24 24"><path d="m10 15.17-2.59-2.58L6 14l4 4 8-8-1.41-1.41Z"></path></svg>
+<input id="signupConfirm" placeholder="Repeat the password" required="" type="password"/>
+</div>
+</div>
+</div>
+<label class="auth-check"><input id="signupAgree" required="" type="checkbox"/>I understand this is a development clinic account.</label>
+<button class="auth-submit" type="submit">Create account</button>
+</form>
+<div class="auth-note">Already created an account? <button onclick="setAuthMode('login')" type="button">Return to login</button></div>
+</section>
+</article>
+</div>
+</section><div class="app-shell"><aside class="sidebar glass"><button aria-label="Medflow home" class="brand-link" onclick="showDashboard()"><span class="brand-mark"><i aria-hidden="true" data-lucide="audio-lines"></i></span><span class="brand-title">medflow<span class="brand-edition">CLINICAL STUDIO</span></span></button><div class="nav-block"><button class="nav-item" data-view="dashboard" onclick="showDashboard()"><i aria-hidden="true" data-lucide="layout-grid"></i><span>Today</span></button><button class="nav-item" data-view="visit" onclick="showVisitWorkspace()"><i aria-hidden="true" data-lucide="stethoscope"></i><span>Visit</span></button><button class="nav-item" data-view="notes" onclick="showNotes()"><i aria-hidden="true" data-lucide="files"></i><span>Records</span></button><a class="nav-item" href="/Receptionist"><i aria-hidden="true" data-lucide="headset"></i><span>Reception</span></a></div><div class="nav-block nav-tools"><div class="nav-label">WHEN YOU NEED IT</div><button class="nav-item" data-view="assistant" onclick="showPatientAssistant()"><i aria-hidden="true" data-lucide="sparkles"></i><span>Patient insight</span></button><button class="nav-item" data-view="coding" onclick="showCodingWorkspace()"><i aria-hidden="true" data-lucide="scan-line"></i><span>Clinical coding</span></button></div><div class="sidebar-bottom"><div class="connection-indicator"><span id="connectionDot"></span><small id="connectionLabel">Connecting</small></div><button class="nav-item" onclick="signOut()"><i aria-hidden="true" data-lucide="log-out"></i><span>Sign out</span></button></div></aside><main class="main-shell"><header class="topbar"><div class="topbar-title"><span class="eyebrow" id="eyebrowText">TODAY’S WORKSPACE</span><h1 id="greetingText">Welcome back</h1></div><div class="topbar-actions"><span class="status-pill" id="workspaceStatus">Clinic session</span><button aria-label="Workspace details" class="icon-btn" onclick="showWorkspaceDetails()" title="Workspace details"><i aria-hidden="true" data-lucide="sliders-horizontal"></i></button><div class="avatar-btn">MF</div></div></header><section class="view active" id="dashboardView"><div class="page-intro"><div><span class="section-kicker">THE CLINICAL STUDIO</span><h2>Your clinic,<br/><em>in focus.</em></h2><p>A clear view of the people and visits that need you.</p></div><button class="toolbar-btn primary" onclick="showAddPatient()"><i aria-hidden="true" data-lucide="user-plus"></i>New intake</button></div><div class="dashboard-layout"><article class="panel-card glass dashboard-queue-card">
+<div class="panel-header">
+<div class="panel-title">
+<h3>Patient records</h3>
+<p>Your patients, ready to open or resume.</p>
+</div>
+<div class="summary-pill" id="patientCountBadge">0 patients</div>
+</div>
+<section aria-labelledby="appointmentQueueTitle" class="appointment-queue-section">
+<div class="queue-section-heading">
+<div>
+<h4 id="appointmentQueueTitle">Appointments</h4>
+</div>
+<span id="appointmentCountBadge">0 booked</span>
+</div>
+<div class="appointment-list" id="doctorAppointmentList"></div>
+</section>
+<div class="queue-section-divider"></div>
+<div class="search-row" style="margin-bottom:18px;">
+<label class="search-shell">
+<svg fill="currentColor" viewbox="0 0 24 24"><path d="m21 20.29-4.74-4.74a7 7 0 1 0-.71.71L20.29 21ZM5 10a5 5 0 1 1 5 5 5 5 0 0 1-5-5Z"></path></svg>
+<input id="dashboardSearch" oninput="filterPatients(this.value)" placeholder="Search patient or complaint..." type="text"/>
+</label>
+
+</div>
+<div class="patient-list" id="dashboardPatientList"></div>
+</article><aside class="studio-aside"><article class="panel-card glass"><div class="panel-header"><div><span class="section-kicker">PICK UP WHERE YOU LEFT OFF</span><h3>In review</h3></div><i aria-hidden="true" data-lucide="file-pen-line"></i></div><div id="recentDrafts"></div></article><article class="studio-note"><span class="section-kicker">ONE CONNECTED VISIT</span><p>From the first conversation<br/>to the final clinical record.</p><a href="/Receptionist"><i aria-hidden="true" data-lucide="arrow-up-right"></i>Open reception</a></article><div class="record-counts"><span><b id="statPatients">0</b> patients</span><span><b id="statNotes">0</b> notes</span><span hidden=""><b id="statRecordings">0</b></span><span hidden="" id="sidebarNoteCount">0</span></div></aside></div></section><section class="view no-patient" data-stage="prepare" id="visitView"><div class="visit-empty"><i aria-hidden="true" data-lucide="stethoscope"></i><h2>A visit starts with a patient.</h2><p>Choose a record to begin or resume.</p><button class="toolbar-btn primary" onclick="showDashboard()">Choose patient<i aria-hidden="true" data-lucide="arrow-right"></i></button></div><div class="visit-content"><article class="patient-card" id="visitPatientCard">
+<div class="patient-headline">
+<div class="avatar" id="visitPatientAvatar">MF</div>
+<div>
+<h2 id="visitPatientName">No patient selected</h2>
+<p id="visitPatientSummary">Choose a patient from Visits to load the intake summary, then start the consultation recording.</p>
+</div>
+</div>
+<div class="patient-chip-row" id="visitPatientChips">
+<div class="ghost-chip">Waiting for patient</div>
+</div>
+<button aria-label="Patient insight" class="icon-btn" onclick="showPatientAssistant()" title="Patient insight"><i aria-hidden="true" data-lucide="sparkles"></i></button><button aria-label="Patient records" class="icon-btn" onclick="showNotesForSelectedPatient()" title="Patient records"><i aria-hidden="true" data-lucide="history"></i></button></article><nav aria-label="Visit progress" class="visit-steps"><button class="visit-step" data-stage="prepare" onclick="chooseVisitStage('prepare')"><i aria-hidden="true" data-lucide="clipboard-check"></i><span>Prepare</span><small>01</small></button><button class="visit-step" data-stage="capture" onclick="chooseVisitStage('capture')"><i aria-hidden="true" data-lucide="audio-lines"></i><span>Consult</span><small>02</small></button><button class="visit-step" data-stage="review" onclick="chooseVisitStage('review')"><i aria-hidden="true" data-lucide="file-pen-line"></i><span>Review</span><small>03</small></button><button class="visit-step" data-stage="finish" onclick="chooseVisitStage('finish')"><i aria-hidden="true" data-lucide="check-check"></i><span>Finish</span><small>04</small></button></nav><div class="stage-heading"><div><span class="section-kicker" id="visitStageKicker">BEFORE THE CONSULTATION</span><h2 id="visitStageTitle">A considered beginning.</h2></div><span class="summary-pill" id="workflowStatePill">No active visit</span></div><div class="prepare-grid"><article class="panel-card glass"><div class="panel-header"><h3>Patient context</h3><button aria-label="Correct intake" class="icon-btn" disabled="" id="correctIntakeBtn" onclick="openIntakeCorrection()" title="Correct intake" type="button"><i aria-hidden="true" data-lucide="pencil"></i></button></div><div class="intake-grid" id="intakeGrid">
+<div class="intake-item full"><small>Patient</small><strong>Select a patient to load intake details.</strong></div>
+</div><details aria-labelledby="previsitHeading" class="previsit-panel"><summary>Pre-visit brief<i aria-hidden="true" data-lucide="chevron-down"></i></summary>
+<div class="previsit-header">
+<button class="note-action" disabled="" id="regeneratePrevisitBtn" onclick="generatePrevisitSummary()" type="button">Generate brief</button>
+</div>
+<div class="previsit-content" id="previsitContent">
+<p>Select and check in a patient to prepare a stored pre-visit brief.</p>
+</div>
+</details></article><article class="panel-card glass clinic-flow-panel"><div class="panel-header"><div><span class="section-kicker">READY WHEN YOU ARE</span><h3 id="clinicFlowHeading">Visit preparation</h3></div><i aria-hidden="true" data-lucide="shield-check"></i></div><div id="preparationSteps"></div><div class="consent-summary"><strong>Recording choices</strong><p id="consentStatus">Select a patient to prepare the consultation.</p><button class="note-action" disabled="" id="openConsentBtn" onclick="openConsentDialog()" type="button">Record choices</button></div><div class="manual-path" id="manualPathNotice">Recording stays off until the required choices are granted.</div><button class="note-action development-shortcut" hidden="" id="quickStartBtn" onclick="startDevelopmentQuickVisit()"><i aria-hidden="true" data-lucide="flask-conical"></i>Prepare synthetic test visit</button></article></div><div class="clinical-workspace"><div class="record-toolbar glass"><button aria-label="Toggle recording" class="rec-btn icon-btn" id="recBtn" onclick="toggleRecording()"><i aria-hidden="true" data-lucide="mic"></i><span hidden="" id="recCore"></span></button><div class="record-caption"><strong id="recTitle">Ready to record</strong><span id="recCopy">Transcript appears after processing.</span></div><div aria-hidden="true" class="wave-bars" id="waveBars"><span></span><span></span><span></span><span></span><span></span></div><span class="duration-pill" id="recordingDuration">00:00</span><label class="template-control"><i aria-hidden="true" data-lucide="file-text"></i><select aria-label="Note template" id="clinicalTemplateSelect" onchange="selectClinicalTemplate(this.value)"></select></label><span class="summary-pill" id="recordingStatePill">Idle</span><button class="toolbar-btn primary" id="recordToggleBtn" onclick="toggleRecording()">Start recording</button><button hidden="" id="generateBtn" onclick="generateNote()">Review draft</button></div><div class="recording-status" id="recordingStatusBanner" role="status"></div><div class="clinical-columns"><article class="record-focus panel-card glass"><span class="section-kicker">THE CONVERSATION COMES FIRST</span><div aria-hidden="true" class="capture-orbit"><div class="orbit-ring ring-two"></div><div class="orbit-ring"></div><i aria-hidden="true" data-lucide="audio-lines"></i></div><h2 id="captureFocusTitle">Space for the conversation.</h2><p id="captureFocusText">Record the consultation. A speaker-labelled transcript and SOAP draft are prepared when you stop.</p><div class="record-hint"><i aria-hidden="true" data-lucide="shield-check"></i>Patient consent recorded for this encounter</div></article><article class="soap-card panel-card glass"><div class="soap-scroll" id="soapContent"></div></article><article class="transcript-card panel-card glass">
+<div class="panel-header">
+<div>
+<div class="section-kicker">THE SOURCE</div>
+<h3 id="transcriptHeading">Urdu transcript</h3>
+<p class="muted" id="transcriptSubtitle">Review the raw Urdu transcription before translation.</p>
+</div>
+<div class="transcript-toggle">
+<button class="transcript-tab active" id="urduTranscriptBtn" onclick="setTranscriptMode('urdu')" type="button">Urdu Transcript</button>
+<button class="transcript-tab" id="englishTranscriptBtn" onclick="setTranscriptMode('english')" type="button">English View</button>
+</div>
+</div>
+<div class="transcript-scroll" id="transcriptBody"></div>
+</article></div></div><div class="finish-workspace" id="finishContent"></div><footer class="visit-footer glass"><div><span id="visitSaveStatus">Visit context loaded</span><small id="visitSaveDetail">One patient. One encounter.</small></div><div class="visit-footer-actions"><button class="note-action" hidden="" id="newVisitBtn" onclick="beginNewVisit()"><i aria-hidden="true" data-lucide="plus"></i>New visit</button><button class="toolbar-btn primary" id="visitNextBtn" onclick="advanceVisit()">Start visit<i aria-hidden="true" data-lucide="arrow-right"></i></button></div></footer></div></section><section class="view" id="notesView">
+<div class="notes-layout">
+<div class="notes-grid">
+<article class="notes-list-card glass">
+<div class="notes-header">
+<div>
+<div class="section-kicker">Saved Notes</div>
+<h3 id="notesTitle">All patient notes</h3>
+<p id="notesSubtitle">Every SOAP note you save after review appears here.</p>
+</div>
+<div class="summary-pill" id="notesCountBadge">0 records</div>
+</div>
+<div class="search-row" style="margin-bottom:18px;">
+<label class="search-shell">
+<svg fill="currentColor" viewbox="0 0 24 24"><path d="m21 20.29-4.74-4.74a7 7 0 1 0-.71.71L20.29 21ZM5 10a5 5 0 1 1 5 5 5 5 0 0 1-5-5Z"></path></svg>
+<input id="notesSearch" oninput="setNotesSearch(this.value)" placeholder="Search patient or note..." type="text"/>
+</label>
+<label class="sort-shell">
+<svg fill="currentColor" viewbox="0 0 24 24"><path d="M7 6h10v2H7Zm-3 5h16v2H4Zm3 5h10v2H7Z"></path></svg>
+<select id="notesSort" onchange="renderNotesPage()">
+<option value="newest">Sort by newest</option>
+<option value="patient">Sort by patient</option>
+</select>
+</label>
+</div>
+<div class="notes-scroll" id="notesList"></div>
+</article>
+<article class="note-detail-card glass">
+<div class="detail-header">
+<div>
+<div class="section-kicker">Note Detail</div>
+<h3>Selected SOAP note</h3>
+<p>Open a note from the left to inspect the generated content and transcript context.</p>
+</div>
+</div>
+<div class="note-detail-scroll" id="noteDetail"></div>
+</article>
+</div>
+</div>
+</section><section class="view" id="codingView">
+<div class="coding-layout">
+<article class="page-heading">
+<div class="notes-header" style="margin-bottom:0;">
+<div>
+<div class="card-kicker">Clinical Coding</div>
+<h2>Clinical coding</h2>
+<p style="margin-top:12px;max-width:760px;">Optional suggestions, reviewed by the doctor.</p>
+</div>
+<div class="detail-actions">
+<button class="note-action" onclick="showVisitWorkspace()" type="button">Back to visit</button>
+<button class="note-action" onclick="showNotes(selectedPatient || null)" type="button">Open records</button>
+</div>
+</div>
+</article>
+<div class="coding-grid">
+<article class="panel-card glass">
+<div class="workspace-header" style="margin-bottom:14px;">
+<div>
+<div class="section-kicker">Source Note</div>
+<h3 id="codingNoteTitle">No note selected</h3>
+<p id="codingNoteSubtitle">Generate or open a SOAP note first, then create ICD-10 and CPT suggestions.</p>
+</div>
+<div class="summary-pill" id="codingStatusPill">Idle</div>
+</div>
+<div class="coding-note-summary" id="codingNoteSummary"></div>
+<div class="detail-actions" style="margin-top:16px;">
+<button class="toolbar-btn primary" disabled="" id="codingGenerateBtn" onclick="generateCodingSuggestions(false)" type="button">Generate ICD-10 &amp; CPT codes</button>
+<button class="note-action" disabled="" id="codingRegenerateBtn" onclick="generateCodingSuggestions(true)" type="button">Regenerate</button>
+</div>
+</article>
+<article class="note-detail-card glass">
+<div class="workspace-header" style="margin-bottom:0;">
+<div>
+<div class="section-kicker">Code Suggestions</div>
+<h3>ICD-10 and CPT review</h3>
+<p>Suggested codes stay in draft status until you approve or reject them.</p>
+</div>
+</div>
+<div class="coding-results" id="codingResults"></div>
+</article>
+</div>
+</div>
+</section><section class="view" id="assistantView">
+<div class="assistant-layout">
+<article class="panel-card glass assistant-topbar">
+<div class="assistant-topcopy">
+<div class="card-kicker">Patient Assistant</div>
+<h2>Patient insight</h2>
+<p>Answers grounded in the selected patient record.</p>
+</div>
+<div class="assistant-topactions">
+<button class="note-action" onclick="showVisitWorkspace()">Visit</button>
+<button class="note-action" onclick="showNotes(selectedPatient || null)">Records</button>
+<button class="note-action" onclick="showCodingWorkspace()">Coding</button>
+</div>
+</article>
+<div class="assistant-grid">
+<article class="panel-card glass">
+<div class="workspace-header" style="margin-bottom:14px;">
+<div>
+<div class="section-kicker">Context Window</div>
+<h3 id="assistantPatientTitle">Current patient context</h3>
+<p id="assistantPatientSubtitle">Select a patient to let the assistant answer questions from intake details and the latest approved SOAP note.</p>
+</div>
+</div>
+<div class="assistant-context-grid" id="assistantPatientContext"></div>
+<div class="assistant-tip" style="margin-top:12px;">
+<small>Suggested prompts</small>
+<strong>Stay specific to the current patient</strong>
+<p>Ask about likely issues, medications already supported by the note, follow-up considerations, or how the SOAP note aligns with the intake record.</p>
+<div class="assistant-suggestion-row" id="assistantSuggestions" style="margin-top:14px;"></div>
+</div>
+</article>
+<article class="note-detail-card glass assistant-shell">
+<div class="workspace-header" style="margin-bottom:0;">
+<div>
+<div class="section-kicker">Conversation</div>
+<h3>Patient Assistant</h3>
+<p>Responses are limited to the selected patient context and latest note history available in Medflow AI.</p>
+</div>
+</div>
+<div class="assistant-thread" id="assistantThread"></div>
+<form class="assistant-composer" onsubmit="askPatientAssistant(event)">
+<textarea id="assistantQuestion" placeholder="Ask a patient-specific question, for example: What is the likely issue based on this patient’s SOAP note?"></textarea>
+<div class="assistant-actions">
+<div class="assistant-hint">Medication questions are answered only from the current patient record or SOAP plan, with clinician review still required.</div>
+<div class="detail-actions">
+<button class="note-action" onclick="clearPatientAssistantChat()" type="button">Clear</button>
+<button class="toolbar-btn primary" id="assistantSubmitBtn" type="submit">Ask assistant</button>
+</div>
+</div>
+</form>
+</article>
+</div>
+</div>
+</section></main></div>
+<dialog class="workflow-dialog" id="verificationDialog">
+<form class="workflow-dialog-body" method="dialog" onsubmit="verifyPatientOtp(event)">
+<div class="dialog-heading"><div><div class="section-kicker">Patient verification</div><h3>Enter phone OTP</h3></div><button aria-label="Close" class="icon-btn" onclick="closeWorkflowDialog('verificationDialog')" type="button">×</button></div>
+<p id="otpDeliveryMessage">A six-digit code was sent to the registered phone.</p>
+<div class="development-otp" hidden="" id="developmentOtpBanner"><strong>DEVELOPMENT MODE</strong><span id="developmentOtpValue"></span></div>
+<label class="dialog-field"><span>Verification code</span><input autocomplete="one-time-code" id="patientOtpInput" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required=""/></label>
+<div class="dialog-actions"><button class="toolbar-btn" onclick="resendPatientOtp()" type="button">Resend</button><button class="toolbar-btn primary" type="submit">Verify patient</button></div>
+</form>
+</dialog>
+<dialog class="workflow-dialog" id="intakeCorrectionDialog">
+<form class="workflow-dialog-body" onsubmit="saveIntakeCorrection(event)">
+<div class="dialog-heading"><h3>Correct patient intake</h3><button aria-label="Close" class="icon-btn" onclick="closeWorkflowDialog('intakeCorrectionDialog')" type="button">×</button></div>
+<label class="dialog-field"><span>Field</span><select id="intakeCorrectionField" onchange="selectIntakeCorrectionField()">
+<option value="name">Name</option><option value="age_text">Age</option><option value="phone_number">Phone number</option>
+<option value="first_visit">First visit</option><option value="past_medical_history">Medical history</option><option value="current_complaint">Current complaint</option>
+</select></label>
+<label class="dialog-field"><span>Corrected value</span><textarea dir="auto" id="intakeCorrectionValue" maxlength="2000" required="" rows="4"></textarea></label>
+<label><input id="intakeCorrectionConfirmed" required="" type="checkbox"/> I have confirmed this correction with the patient.</label>
+<p id="intakeCorrectionError" role="alert"></p>
+<div class="dialog-actions"><button class="toolbar-btn" onclick="closeWorkflowDialog('intakeCorrectionDialog')" type="button">Cancel</button><button class="toolbar-btn primary" id="saveIntakeCorrectionBtn" type="submit">Save correction</button></div>
+</form>
+</dialog>
+<dialog class="workflow-dialog" id="bookingDialog">
+<form class="workflow-dialog-body" method="dialog" onsubmit="bookSelectedAppointment(event)">
+<div class="dialog-heading"><div><div class="section-kicker">Appointment</div><h3>Select an available slot</h3></div><button aria-label="Close" class="icon-btn" onclick="closeWorkflowDialog('bookingDialog')" type="button">×</button></div>
+<div class="dialog-grid">
+<label class="dialog-field"><span>Department</span><select id="bookingDepartment" onchange="filterBookingDoctors()" required=""></select></label>
+<label class="dialog-field"><span>Doctor</span><select id="bookingDoctor" onchange="syncBookingProfile()" required=""></select></label>
+<label class="dialog-field"><span>Visit type</span><select id="bookingVisitType" required=""></select></label>
+<label class="dialog-field"><span>Search from</span><input id="bookingStartDate" required="" type="date"/></label>
+</div>
+<button class="toolbar-btn" onclick="loadAvailableSlots()" type="button">Find slots</button>
+<label class="dialog-field"><span>Available time</span><select id="bookingSlot" required=""><option value="">Find an available slot</option></select></label>
+<div class="dialog-actions"><button class="toolbar-btn" onclick="closeWorkflowDialog('bookingDialog')" type="button">Cancel</button><button class="toolbar-btn primary" type="submit">Confirm appointment</button></div>
+</form>
+</dialog>
+<dialog class="workflow-dialog" id="consentDialog">
+<form class="workflow-dialog-body" method="dialog" onsubmit="saveConsentChoices(event)">
+<div class="dialog-heading"><div><div class="section-kicker">Encounter consent</div><h3>Record the patient choices</h3></div><button aria-label="Close" class="icon-btn" onclick="closeWorkflowDialog('consentDialog')" type="button">×</button></div>
+<p>Record each choice separately. Declining a required choice disables the recording and AI workflow, but does not prevent a manual consultation.</p>
+<div class="consent-choice-list">
+<label class="consent-choice"><input id="consentRecording" type="checkbox"/><span><strong>Audio recording</strong><small>Allow this consultation to be recorded.</small></span></label>
+<label class="consent-choice"><input id="consentTranscription" type="checkbox"/><span><strong>AI transcription</strong><small>Allow approved speech-to-text processing.</small></span></label>
+<label class="consent-choice"><input id="consentDocumentation" type="checkbox"/><span><strong>AI documentation</strong><small>Allow creation of an AI SOAP draft for doctor review.</small></span></label>
+<label class="consent-choice optional"><input id="consentRetention" type="checkbox"/><span><strong>Retain consultation audio</strong><small>Optional. Keep audio only when clinic retention is enabled.</small></span></label>
+</div>
+<div class="dialog-actions"><button class="toolbar-btn" onclick="closeWorkflowDialog('consentDialog')" type="button">Cancel</button><button class="toolbar-btn primary" type="submit">Save choices</button></div>
+</form>
+</dialog>
+<script src="/assets/vendor/lucide.min.js"></script><script src="/assets/ui.js?v=20261007-studio"></script><script src="/assets/studio.js?v=20261007-studio"></script><script src="/assets/icons.js?v=20261007-studio"></script></body>
+</html>

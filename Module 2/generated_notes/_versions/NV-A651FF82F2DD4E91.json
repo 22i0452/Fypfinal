@@ -1,0 +1,62 @@
+{
+  "change_reason": "AI-generated draft",
+  "created_at": "2026-09-09T15:49:36.825378Z",
+  "created_by_actor_id": "soap-generator-agent",
+  "evidence": [
+    {
+      "evidence_id": "U1",
+      "excerpt": "[Translation needed] محسوس طور پر جنگ سوچنا ، میں جو بھی فرماوی نہیں ہوں اور ٹھیک ہوں ، میں کوئی بار نیوک پر محسوس کرنا چاہتا ہوں ، میں نے سوڑا ہوں جو دنیا میں نے بہت زیادہ پیس پگاہ کیا۔ آخرے بار میں جسٹیلی پر کھڑا رہا تھا ، کیا جنگ سوچنا ، بیٹھا ہوں جس کے روزے میں ایک پوپنگ صونا رہی ہے اور بعد میں اسے ٹھیک ہوں جو جنگ سوچنا نہیں ہوں۔ سنیدہ سنتیٹک آپ کو بھی نہیں ضروری ہے۔ یہ بہت بڑی مسئلہ نہیں ہے۔ لہذا میں آپ کو دو دن کے لیے کپنین کلر کے لیے رکھنے کے لیے رکھنا رہا ہوں۔ اور میں چیک کرنا چاہتا ہوں کہ اس میں بہت سے سوال ہے۔ لہذا میں آپ کو اگر سوال ہے تو آپ کو مرائی اور سوال سکن ریپورٹس کے لیے جا سکتا ہے۔ اس کے بعد ہم ایک بار پہلے بھی پڑھ سکتے ہیں۔ یہاں اس کے ساتھ ایک صحیح مسئلہ ہے۔ لہذا پڑھیں۔",
+      "source_id": "U1",
+      "source_type": "TRANSCRIPT_UTTERANCE"
+    }
+  ],
+  "note_id": "NOTE-91F239C4355F4D86",
+  "note_version_id": "NV-A651FF82F2DD4E91",
+  "soap": {
+    "assessment": [
+      {
+        "claim_id": "NOTE-91F239C4355F4D86-ASSESSMENT-001",
+        "evidence_ids": [],
+        "status": "REVIEW_REQUIRED",
+        "text": "A clinician-stated assessment was not documented and requires review."
+      }
+    ],
+    "missing_information": [
+      "Assessment requires clinician input",
+      "Plan requires clinician input"
+    ],
+    "objective": [
+      {
+        "claim_id": "NOTE-91F239C4355F4D86-OBJECTIVE-001",
+        "evidence_ids": [],
+        "status": "REVIEW_REQUIRED",
+        "text": "No vital signs, examination findings, or completed diagnostic results were documented in the supplied encounter."
+      }
+    ],
+    "plan": [
+      {
+        "claim_id": "NOTE-91F239C4355F4D86-PLAN-001",
+        "evidence_ids": [],
+        "status": "REVIEW_REQUIRED",
+        "text": "A clinician-stated treatment or follow-up plan was not documented."
+      }
+    ],
+    "subjective": [
+      {
+        "claim_id": "NOTE-91F239C4355F4D86-SUBJECTIVE-001",
+        "evidence_ids": [],
+        "status": "REVIEW_REQUIRED",
+        "text": "Intake additionally records the presenting concern as: Synthetic follow-up complaint. Relevant history recorded at intake: Synthetic controlled condition."
+      }
+    ],
+    "unsupported_claims": [],
+    "warnings": [
+      "The model draft was unavailable; a transcript-grounded fallback requires clinician review.",
+      "The model provider was unavailable; a transcript-grounded fallback was created."
+    ]
+  },
+  "status": "AI_DRAFT",
+  "template_id": "TPL-GP-01",
+  "transcript_id": "TRN-C20EB323C99545D7",
+  "version_number": 1
+}

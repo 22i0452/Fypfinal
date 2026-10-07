@@ -1,0 +1,10 @@
+<svg width="320" height="72" viewBox="0 0 320 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="320" height="72" fill="none"/>
+  <g transform="translate(8,10)">
+    <path d="M11 42V10L26 24L41 10V42" stroke="#27D3B4" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M2 36V16" stroke="#27D3B4" stroke-width="5" stroke-linecap="round"/>
+    <path d="M50 36V16" stroke="#27D3B4" stroke-width="5" stroke-linecap="round"/>
+    <path d="M11 10H17L26 24L35 10H41" stroke="#27D3B4" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="88" y="47" fill="#27D3B4" font-family="Segoe UI, Tahoma, sans-serif" font-size="52" font-weight="500">Medflow AI</text>
+</svg>
