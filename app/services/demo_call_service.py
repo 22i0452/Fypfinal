@@ -9,6 +9,7 @@ import urllib.request
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
+from medflow.intake_validation import ascii_digits, normalize_age, normalize_phone
 
 from app.services.appointment_service import AppointmentError
 from app.services.booking_flow import OPENING as BOOKING_OPENING
@@ -174,7 +175,7 @@ class DemoCallService:
             "process": BookingFlow.from_history([first]).process_state() if scenario.get("flow") == "booking" else {"simulation":True},
         }
 
-    def turn(self, *, scenario_id: str, history: list[dict[str, str]], user_message: str) -> dict[str, Any]:
+    def turn(self, *, scenario_id: str, history: list[dict[str, str]], user_message: str, preferred_practitioner_id: str = "") -> dict[str, Any]:
         scenario = SCENARIOS.get(scenario_id)
         if scenario is None:
             raise DemoCallError("UNKNOWN_SCENARIO", "Unknown demo scenario")
@@ -182,7 +183,7 @@ class DemoCallService:
         if not clean:
             raise DemoCallError("EMPTY_MESSAGE", "Please say or type a reply")
         if scenario.get("flow") == "booking":
-            return self._booking_turn(scenario_id, history, clean)
+            return self._booking_turn(scenario_id, history, clean, preferred_practitioner_id)
 
         messages: list[dict[str, str]] = []
         has_system = False
@@ -229,13 +230,15 @@ class DemoCallService:
             "history": next_history,
         }
 
-    def _booking_turn(self, scenario_id: str, history: list[dict[str, str]], clean: str) -> dict[str, Any]:
+    def _booking_turn(self, scenario_id: str, history: list[dict[str, str]], clean: str, preferred_practitioner_id: str = "") -> dict[str, Any]:
         flow = BookingFlow.from_history(history)
         flow.recent_turns = [item for item in history if item.get("role") in {"user", "assistant"}][-4:]
         today = datetime.now(_CLINIC_TIMEZONE).date()
         from app.services.demo_stt import transcript_issue
         issue = transcript_issue(clean)
-        extracted = {"needs_review": True, "fields": {}, "interpretation": {"ur": clean, "en": ""}} if issue == "prompt_echo" else self._extract(flow, clean)
+        choices = self._doctor_choices(flow, preferred_practitioner_id) if flow.current == "doctor" else []
+        direct = self._short_answer(flow, clean) or self._catalog_answer(flow, clean, choices)
+        extracted = {"needs_review": True, "fields": {}, "interpretation": {"ur": clean, "en": ""}} if issue == "prompt_echo" else direct or self._extract(flow, clean)
         interpretation = extracted.get("interpretation")
         if not isinstance(interpretation, dict):
             fields = extracted.get("fields") or {}
@@ -247,6 +250,19 @@ class DemoCallService:
             urdu, english = "اس جواب کا ایک حصہ واضح نہیں۔ براہ کرم اسے درست کریں یا دوبارہ بتائیں۔", "Part of that answer is uncertain. Edit it or say it again; your collected details are retained."
         else:
             urdu, english = flow.handle(clean, extracted, today=today)
+            selected = (extracted.get("fields") or {}).get("doctor") if isinstance(extracted.get("fields"), dict) else None
+            if isinstance(selected, dict) and "doctor" in flow.values:
+                matched = next((row for row in choices if row["practitioner_id"] == selected.get("practitioner_id") and row["display_name"] == flow.values["doctor"]["en"]), None)
+                if matched:
+                    flow.values["doctor"]["practitioner_id"] = matched["practitioner_id"]
+        if flow.current == "doctor" and flow.step == "collect":
+            choices = choices or self._doctor_choices(flow, preferred_practitioner_id)
+            if choices:
+                flow.doctor_options = [{key: item[key] for key in ("practitioner_id", "display_name", "recommended")} for item in choices]
+                if not review:
+                    urdu, english = flow._remember(*self._doctor_prompt(choices))
+        else:
+            choices = []
         reply = f"{urdu}\n{english}"
         # Keep display history bounded. Only the last four caller/agent turns
         # and collected fields are supplied as context to the extractor.
@@ -259,12 +275,139 @@ class DemoCallService:
         return {
             "scenario_id": scenario_id,
             "reply": reply,
-            "speech_text": self.urdu_for_speech(reply),
+            "speech_text": urdu,
             "history": [flow.state_message(), *transcript[-20:]],
             "booking_complete": flow.done,
-            "process": {**flow.process_state(), "extractor":extracted.get("_process_metadata")},
+            "process": {**flow.process_state(), "extractor":extracted.get("_process_metadata"), "doctor_choices": choices},
             "understanding": {"raw": clean, **interpretation, "needs_review": review},
         }
+
+    def _doctor_choices(self, flow: BookingFlow, preferred: str = "") -> list[dict]:
+        integration = getattr(self, "integration", None)
+        if not integration:
+            return []
+        try:
+            config = integration.configuration()
+            department = next((item for item in config["departments"] if item["name"].casefold() == flow.values.get("department", {}).get("en", "").casefold()), None)
+            if not department:
+                return []
+            visit = "VISIT-NEW" if flow.values.get("first_visit", {}).get("en") != "No" else "VISIT-FOLLOWUP"
+            visit = next((item["visit_type_id"] for item in config["visit_types"] if item["visit_type_id"] == visit), config["visit_types"][0]["visit_type_id"])
+            choices = []
+            for doctor in config["practitioners"]:
+                if doctor["department_id"] != department["department_id"]:
+                    continue
+                row = {"practitioner_id": doctor["practitioner_id"], "display_name": " ".join(doctor["display_name"].split()), "next_slot": None, "recommended": False, "preferred": doctor["practitioner_id"] == preferred}
+                try:
+                    slots = integration.availability(practitioner_id=doctor["practitioner_id"], visit_type_id=visit, days=14, limit=1)["slots"]
+                    if slots:
+                        row["next_slot"] = slots[0]["start_at"]
+                except (ReceptionistIntegrationError, AppointmentError):
+                    pass
+                choices.append(row)
+            choices.sort(key=lambda row: (row["next_slot"] is None, row["next_slot"] or "", row["display_name"], row["practitioner_id"]))
+            if choices and choices[0]["next_slot"]:
+                choices[0]["recommended"] = True
+            return choices
+        except (ReceptionistIntegrationError, AppointmentError, KeyError, IndexError):
+            return []
+
+    @staticmethod
+    def _doctor_prompt(choices: list[dict]) -> tuple[str, str]:
+        names = "؛ ".join(f"{index + 1}: {row['display_name']}" for index, row in enumerate(choices[:3]))
+        extra = " مزید نام اسکرین پر ہیں۔" if len(choices) > 3 else ""
+        suggested = next((row for row in choices if row["recommended"]), None)
+        ur = f"دستیاب ڈاکٹر یہ ہیں: {names}۔{extra} نام یا نمبر بتائیں، یا کوئی بھی ڈاکٹر کہیں۔"
+        en = f"Available doctors: {names}. Choose a name or number, or say any doctor."
+        if suggested:
+            ur += " پہلے نمبر کے ڈاکٹر کے پاس سب سے پہلے دستیاب وقت ہے؛ انتخاب آپ کا ہے۔"
+            en += " The first listed doctor has the earliest listed opening; the choice is yours."
+        return ur, en
+
+    @staticmethod
+    def _direct_field(key: str, ur: str, en: str) -> dict:
+        return {"intent": "answer", "fields": {key: {"ur": ur, "en": en}}, "fix": [],
+                "interpretation": {"ur": ur, "en": en}, "_process_metadata": {"method": "Local contextual answer", "fallback": False}}
+
+    @classmethod
+    def _short_answer(cls, flow: BookingFlow, text: str) -> dict | None:
+        plain = re.sub(r"[۔.!؟?،,]", "", ascii_digits(text)).strip().casefold()
+        plain = re.sub(r"\b(\w+)(?:\s+\1)+\b", r"\1", plain)
+        words = plain.split()
+        while len(words) > 1 and len(words) % 2 == 0 and words[:len(words)//2] == words[len(words)//2:]:
+            words = words[:len(words)//2]
+        plain = " ".join(words)
+        yes = {"جی", "جی ہاں", "ہاں", "درست ہے", "صحیح ہے", "ٹھیک ہے", "ٹھیک", "بالکل", "جی بالکل", "yes", "yes correct", "correct", "ok", "okay", "haan", "ji"}
+        no = {"نہیں", "نہ", "no", "nahi", "nahin"}
+        decision = "yes" if plain in yes else "no" if plain in no else None
+        tokens = set(plain.split())
+        affirmative = {"جی", "ہاں", "بالکل", "درست", "صحیح", "ٹھیک", "ہے", "yes", "correct", "okay", "right", "ok", "haan", "ji", "jee", "sure"}
+        if tokens and tokens <= affirmative and tokens != {"ہے"}:
+            decision = "yes"
+        if tokens & no and tokens <= no | {"جی", "ji", "jee"}:
+            decision = "no"
+        if flow.step in {"confirm", "summary"} and decision:
+            result = cls._direct_field("unused", text, "Yes" if decision == "yes" else "No")
+            result.update(intent=decision, fields={})
+            return result
+        if flow.step != "collect":
+            return None
+        key = flow.current
+        if key == "first_visit" and decision:
+            return cls._direct_field(key, "جی ہاں" if decision == "yes" else "نہیں", "Yes" if decision == "yes" else "No")
+        if key == "history" and plain in no | {"none", "nothing", "کوئی نہیں", "کوئی بیماری نہیں"}:
+            return cls._direct_field(key, "کوئی نہیں", "None")
+        symptoms = {"fever": ("بخار", "Fever"), "بخار": ("بخار", "Fever"),
+                    "pain": ("درد", "Pain"), "درد": ("درد", "Pain"),
+                    "cough": ("کھانسی", "Cough"), "کھانسی": ("کھانسی", "Cough"),
+                    "headache": ("سر درد", "Headache"), "سر درد": ("سر درد", "Headache")}
+        if key == "complaint" and plain in symptoms:
+            return cls._direct_field(key, *symptoms[plain])
+        if key == "age":
+            number = re.sub(r"\b(?:years?|old)\b|سال", "", plain).strip()
+            tokens = number.split()
+            if 0 < len(tokens) <= 3 and all(normalize_age(token) for token in tokens):
+                age = normalize_age(number)
+                if age:
+                    return cls._direct_field(key, age, age)
+        if key == "phone":
+            phone = normalize_phone(text)
+            if phone:
+                return cls._direct_field(key, phone, phone)
+        if key == "department" and plain in {"general", "medicine", "general medicine", "general med", "جنرل", "میڈیسن", "جنرل میڈیسن", "cardiology", "cardio", "کارڈیالوجی", "pediatrics", "پیڈیاٹرکس"}:
+            value = BookingFlow._validate(key, text, text)
+            if isinstance(value, dict):
+                return cls._direct_field(key, value["ur"], value["en"])
+        if key == "doctor" and plain in {"any", "any doctor", "any available doctor", "کوئی بھی", "کوئی بھی ڈاکٹر", "koi bhi", "no preference"}:
+            return cls._direct_field(key, "کوئی بھی دستیاب ڈاکٹر", "Any available doctor")
+        return None
+
+    @classmethod
+    def _catalog_answer(cls, flow: BookingFlow, text: str, choices: list[dict]) -> dict | None:
+        if flow.current != "doctor" or flow.step != "collect" or not choices:
+            return None
+        def normalized(value):
+            return " ".join(re.sub(r"[^\w\s]", " ", ascii_digits(value).casefold()).replace("_", " ").split())
+        plain = normalized(text)
+        current = {row["practitioner_id"]: row for row in choices}
+        listed = [current[item["practitioner_id"]] for item in flow.doctor_options if isinstance(item, dict) and item.get("practitioner_id") in current] or choices
+        selected = None
+        if plain in {"recommended", "recommend", "suggested", "تجویز", "تجویز کردہ", "ریکمینڈڈ", "آپ بتائیں", "you choose"}:
+            old = next((item for item in flow.doctor_options if isinstance(item, dict) and item.get("recommended") and item.get("practitioner_id") in current), None)
+            selected = current[old["practitioner_id"]] if old else next((row for row in choices if row["recommended"]), None)
+        number = re.fullmatch(r"(?:option |number |doctor |نمبر )?(\d+)", plain)
+        ordinal = {"first": 1, "first doctor": 1, "first one": 1, "پہلا": 1, "پہلے": 1, "پہلا ڈاکٹر": 1, "پہلے والے": 1, "second": 2, "second doctor": 2, "second one": 2, "دوسرا": 2, "دوسرا ڈاکٹر": 2, "third": 3, "third doctor": 3, "تیسرا": 3, "تیسرا ڈاکٹر": 3}
+        index = int(number[1]) if number else ordinal.get(plain)
+        if index and 1 <= index <= len(listed):
+            selected = listed[index - 1]
+        matches = [row for row in choices if normalized(row["display_name"]) == plain]
+        if len(matches) == 1:
+            selected = matches[0]
+        if selected:
+            result = cls._direct_field("doctor", selected["display_name"], selected["display_name"])
+            result["fields"]["doctor"]["practitioner_id"] = selected["practitioner_id"]
+            return result
+        return None
 
     def finish(
         self,
@@ -354,10 +497,12 @@ class DemoCallService:
             words = {word for word in re.findall(r"[a-z]{3,}", wanted.casefold()) if word not in {"any", "available", "doctor"}}
             named = wanted and not re.search(r"any|available|no preference", wanted, re.I)
             matches = [item for item in doctors if words and words <= set(re.findall(r"[a-z]{3,}", item["display_name"].casefold()))]
-            if named and len(matches) != 1:
+            selected_id = values.get("doctor", {}).get("practitioner_id")
+            selected = next((item for item in doctors if item["practitioner_id"] == selected_id and " ".join(item["display_name"].split()) == wanted), None)
+            if named and selected is None and len(matches) != 1:
                 return {"status": "DOCTOR_UNCLEAR", "requested_time": requested,
                         "message": "The requested doctor could not be matched uniquely. Choose a doctor before booking."}
-            practitioner = matches[0] if named else next((item for item in doctors if item["practitioner_id"] == preferred_practitioner_id), None)
+            practitioner = selected or (matches[0] if named else next((item for item in doctors if item["practitioner_id"] == preferred_practitioner_id), None))
             new_patient = values["first_visit"]["en"] == "Yes"
             visit_type = next(
                 (
@@ -461,6 +606,11 @@ class DemoCallService:
 
     @staticmethod
     def urdu_for_speech(text: str) -> str:
+        first = str(text or "").strip().split("\n", 1)[0]
+        if _ARABIC_CHAR.search(first):
+            # Preserve actual doctor names inside Urdu speech; script splitting
+            # previously removed Latin names from the spoken doctor list.
+            return first
         formatted = DemoCallService.format_bilingual(text)
         urdu = formatted.split("\n", 1)[0].strip()
         if _ARABIC_CHAR.search(urdu):

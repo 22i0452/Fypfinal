@@ -400,6 +400,7 @@ function setDemoComposerEnabled(enabled) {
     sendBtn.hidden = false;
   }
   if (micBtn) micBtn.disabled = !enabled || state.demoBusy;
+  window.renderReceptionDoctorChoices?.();
 }
 
 function stopDemoAudio() {
@@ -517,7 +518,7 @@ function stopDemoMicCapture({ finalize = false } = {}) {
   if (!chunks.length) return null;
   const merged = mergeFloat32Chunks(chunks);
   const pcm16k = resampleFloat32(merged, sampleRate, 16000);
-  if (pcm16k.length < 16000 * 0.18) return null;
+  if (pcm16k.length < 16000 * 0.06) return null;
   return encodeWavMono16(pcm16k, 16000);
 }
 
@@ -922,7 +923,7 @@ async function toggleDemoMic() {
     const ctx = new AudioCtx({ sampleRate: 16000 });
     if (ctx.state === "suspended") await ctx.resume();
     const source = ctx.createMediaStreamSource(stream);
-    const processor = ctx.createScriptProcessor(4096, 1, 1);
+    const processor = ctx.createScriptProcessor(1024, 1, 1);
     const mute = ctx.createGain();
     mute.gain.value = 0;
     const chunks = [];

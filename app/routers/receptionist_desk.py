@@ -231,6 +231,7 @@ async def desk_demo_turn(payload: DemoTurnPayload, request: Request):
             scenario_id=payload.scenario_id,
             history=payload.history,
             user_message=payload.user_message,
+            preferred_practitioner_id=_preferred_doctor(request),
         )
     except DemoCallError as exc:
         raise _service_error(exc) from exc
@@ -300,7 +301,7 @@ async def desk_demo_stt(request: Request, audio: UploadFile = File(...), history
                     provider=provider,
                     model=model,
                     language="ur",
-                    prompt=contextual_stt_prompt(flow.current),
+                    prompt=contextual_stt_prompt(flow.current, flow.step),
                     response_format="text",
                 )
             if (text or "").strip():

@@ -153,6 +153,7 @@ class ApplicationContainer:
             groq_llm_model=settings.groq_llm_model,
             openrouter_api_key=settings.openrouter_api_key,
         )
+        self.demo_call_service.integration = self.receptionist_integration_service
         self.inbound_call_service.attach_booking(self.demo_call_service, self.receptionist_integration_service)
         self.template_service = TemplateService(self.template_repository)
         self.documentation_service = DocumentationService(

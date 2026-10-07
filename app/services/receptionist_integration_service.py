@@ -651,6 +651,8 @@ class ReceptionistIntegrationService:
             [
                 item for item in self.clinic.list_practitioners()
                 if item.get("doctor_user_id") is not None
+                and (user := self.auth.get_by_id(int(item["doctor_user_id"]))) is not None
+                and user.active
             ],
             key=lambda item: (
                 0 if primary and item["practitioner_id"] == primary.practitioner_id else 1,

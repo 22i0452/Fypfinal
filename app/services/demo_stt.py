@@ -16,13 +16,15 @@ logger = logging.getLogger(__name__)
 SAMPLE_RATE = 16_000
 
 # Same Whisper family as medical Module 2; Urdu Nastaliq + clinic vocabulary.
-DEMO_STT_PROMPT = "پاکستانی اردو، English، میڈفلو کلینک، جنرل میڈیسن، کارڈیالوجی، پیڈیاٹرکس۔"
+DEMO_STT_PROMPT = "پاکستانی اردو، English۔"
 
 
-def contextual_stt_prompt(field: str = "") -> str:
+def contextual_stt_prompt(field: str = "", step: str = "collect") -> str:
     # Vocabulary bias only: instructions and sample answers can be hallucinated.
+    if step in {"confirm", "summary"}:
+        return ""
     hints = {"name": "نام", "age": "عمر", "phone": "فون نمبر",
-             "department": "شعبہ", "doctor": "ڈاکٹر", "time": "دن، وقت"}
+             "department": "شعبہ، جنرل میڈیسن، کارڈیالوجی، پیڈیاٹرکس", "doctor": "ڈاکٹر", "time": "دن، وقت"}
     return DEMO_STT_PROMPT + (" " + hints[field] if field in hints else "")
 
 
@@ -104,6 +106,10 @@ def _normalize_wav(audio_bytes: bytes) -> bytes:
     peak = float(np.max(np.abs(samples))) if samples.size else 0.0
     if peak > 0.002:
         samples = samples * min(4.0, 0.95 / peak)
+    # Keep a brief answer's edges inside the clip. These are silent margins,
+    # not invented speech; UI measurements continue to use the original WAV.
+    if samples.size < SAMPLE_RATE:
+        samples = np.pad(samples, (int(SAMPLE_RATE * .12), int(SAMPLE_RATE * .24)))
     return _float_to_wav_bytes(samples, SAMPLE_RATE)
 
 

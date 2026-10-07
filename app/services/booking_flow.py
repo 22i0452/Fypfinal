@@ -109,6 +109,9 @@ Use them to resolve a short answer to the current question. Never treat earlier
 answers, agent prompts or sample text as facts newly spoken in this turn.
 Resolve obvious clinic vocabulary recognition errors; do not invent names,
 digits, symptoms or dates. For genuinely uncertain speech set needs_review=true.
+One-word answers and short sentences are normal. Never mark them uncertain
+just because they are short. A clear name, age or phone number is read back
+for confirmation by the booking flow; preserve it rather than rejecting it.
 
 Return ONLY this JSON object:
 {"intent": "answer|yes|no|repeat|unclear",
@@ -202,6 +205,7 @@ class BookingFlow:
         self.token: str = state.get("token") or secrets.token_hex(24)
         # Half of a requested time ("kal" without an hour) waits for the other half.
         self.partial_time: dict[str, str] = dict(state.get("partial_time") or {})
+        self.doctor_options: list[dict[str, Any]] = list(state.get("doctor_options") or [])
         self._today = date.today()
         self._caller_text = ""
 
@@ -227,6 +231,7 @@ class BookingFlow:
             "last_prompt": self.last_prompt,
             "token": self.token,
             "partial_time": self.partial_time,
+            "doctor_options": self.doctor_options,
         }
         return {"role": "system", "content": STATE_TAG + json.dumps(state, ensure_ascii=False)}
 
@@ -266,6 +271,7 @@ class BookingFlow:
             "today": f"{today.isoformat()} ({today.strftime('%A')})",
             "caller": caller_text,
             "collected_fields": self.values,
+            "doctor_options": self.doctor_options,
             "recent_turns": getattr(self, "recent_turns", [])[-4:],
         }
         return [
@@ -288,7 +294,10 @@ class BookingFlow:
                 (re.findall(r"\d+", ascii_digits(text)) or [""])[0]
             )
         elif key == "first_visit":
-            value = "Yes" if re.search(r"پہلی بار|پہلی دفعہ|first|ہاں|جی", text, re.I) else "No"
+            from medflow.intake_validation import normalize_first_visit
+            value = normalize_first_visit(text)
+            if not value:
+                return {"intent": "unclear", "fields": {}, "fix": []}
             return {"intent": "answer", "fields": {key: {"ur": "جی ہاں" if value == "Yes" else "نہیں", "en": value}}, "fix": []}
         if not value:
             return {"intent": "unclear", "fields": {}, "fix": []}

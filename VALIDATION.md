@@ -4,7 +4,7 @@ Validation uses isolated synthetic patient records and mock provider outputs. No
 
 ## Automated checks
 
-- Full discovery: **144 results, 141 passed, 3 import errors, zero assertion failures**. The blocked modules are `test_receptionist_corrections`, `test_receptionist_integration`, and `test_receptionist_speech`; the execution environment lacks the native PortAudio library. This is not a fully passing suite.
+- Full discovery: **150 results, 147 passed, 3 import errors, zero assertion failures**. The blocked modules are `test_receptionist_corrections`, `test_receptionist_integration`, and `test_receptionist_speech`; the execution environment lacks the native PortAudio library. This is not a fully passing suite.
 - Targeted process observability, demo-call booking and SOAP-quality tests: **22 passed**.
 - Full Python compilation, changed JavaScript syntax checks and `git diff --check` pass.
 - TTS startup warmup is suppressed for the full-suite QA run to avoid background network calls. Providers under test remain mocked; no physical audio test is claimed.
@@ -39,3 +39,11 @@ QA audio is a generated tone and STT/TTS outputs are synthetic. Real provider ke
 - Targeted recovery, demo-finish and process-observability modules: 22 passed.
 - Re-ran the complete connected Chromium journey through consultation, SOAP approval, completed visit and real receptionist handoff; no browser errors. Re-ran synthetic microphone capture, waveform, WAV upload, transcription, confirmation and TTS playback at 1440/1280/390.
 - Additional Chromium recovery journey checks signed-in doctor selection, server receipt IDs/destination, pending request visibility, reload persistence, explicit wrong-account handoff messages, editing a prompt echo without losing fields, accepted corrected answer and visible translation. A saved voice intake with an unmatched doctor can resume into manual booking using the same patient and token. Providers and audio remain synthetic for QA.
+
+
+## Brief replies and doctor choices regression (latest)
+
+- Targeted recovery, demo-finish and process-observability modules: 28 passed, including six additional regression methods for short local answers, repeated confirmations/corrections, actual active doctor lists and spoken names, earliest-slot suggestions with no-slot handling, stable numbering/exact IDs for duplicate names, and silent short-clip margins preserving original measurements.
+- Chromium submitted a brief real WAV capture with synthetic Urdu transcription, then completed short history/complaint replies and a repeated department answer. It checked actual doctor choices in the response/UI/TTS request, the earliest-opening badge, selection by exact practitioner ID, no browser errors, and 1440/1280/390 layouts.
+- Re-ran the connected reception recovery browser journey: signed-in doctor default, receipt, pending queue, wrong-account explanation, editable prompt echo and continuation of a saved intake without a duplicate patient.
+- Full discovery: 150 results, 147 passes, zero assertion failures and the same three native PortAudio import blocks. Physical microphone, live provider recognition accuracy and real telephone transport remain unmeasured.
