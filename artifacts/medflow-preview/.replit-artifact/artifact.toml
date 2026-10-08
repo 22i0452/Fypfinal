@@ -17,6 +17,8 @@ run = "pnpm --filter @workspace/medflow-preview run dev"
 [services.production]
 run = ["python", "scripts/run_demo.py", "--published"]
 
+[services.production.health.startup]
+path = "/api/healthz"
+
 [services.env]
-PORT = "20788"
 BASE_PATH = "/"
