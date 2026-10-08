@@ -44,6 +44,7 @@ def bootstrap(root, mode):
     import dotenv
     dotenv.load_dotenv = lambda *args, **kwargs: False
     os.environ.update(APP_ENV='test', DEVELOPMENT_QUICK_START_ENABLED='false', SHOW_DEV_OTP='false',
+        STORAGE_BACKEND='json', DEMO_PROFILES_ENABLED='false',
         MEDFLOW_DATABASE_PATH=str(root/'default.db'), MEDFLOW_PATIENT_RECORDS_DIR=str(root/'default-patients'),
         MEDFLOW_GENERATED_NOTES_DIR=str(root/'default-notes'), PRIMARY_DOCTOR_EMAIL='',
         MEDFLOW_TEST_REPORT_WORKER='1', SESSION_SECRET='synthetic-report-session-secret-at-least-32-characters',
@@ -185,6 +186,47 @@ def run_case(case_id, p, root):
     from app.services.demo_call_service import DemoCallService
     from app.services.booking_flow import BookingFlow
     from app.services.coding_service import CodingCandidate
+    if case_id in {'medicine-dose-stop','soap-medicine-edit'}:
+        from medflow.medicines import check_turn, soap_issues
+        source='Take Panadol 500 mg. Do not take Motilium 10 mg.'
+        result=p.call('Check exact medicine wording',lambda:check_turn(source,source))
+        p.check('Preserved names, doses and stop instruction',[],result['issues'])
+        changed=soap_issues([{'text':source}],{'plan':'Take Panadol 500 mg.'})
+        p.check('Missing Motilium detected',True,'soap_medicine_missing:Motilium' in changed)
+        if case_id=='medicine-dose-stop':
+            p.check('Changed dosage flagged',True,bool(check_turn(source,source.replace('500','250'))['issues']))
+            p.check('Removed stop instruction flagged',True,bool(check_turn(source,source.replace('Do not take','Take'))['issues']))
+        return
+    if case_id=='medicine-context':
+        import json
+        from medflow.medicine_matching import automatic_matches
+        from medflow.medicines import check_turn
+        from security_guardrails import SecureLLMGateway, set_gateway
+        gateway=SecureLLMGateway(provider='mock');set_gateway(gateway)
+        adapter=gateway._adapter('mock')
+        turns=[{'utterance_id':'U1','speaker':'Doctor','text':'میں آپ کو ٹیسٹ لکھ کے دے رہا ہوں۔'},
+               {'utterance_id':'U2','speaker':'Patient','text':'میری والدہ بھی ساتھ ہیں۔'},
+               {'utterance_id':'U3','speaker':'Doctor','text':'Take Panadol.'}]
+        adapter.set_response('medicine_context',{'entities':[{'utterance_id':'U1','source':'ٹیسٹ','start':11,'end':15,'kind':'non_medical'}]})
+        result=p.call('Full consultation entity request',lambda:automatic_matches(turns))
+        calls=[call for call in adapter.calls if call['task_type']=='medicine_context']
+        p.check('One full-context request',1,len(calls))
+        payload=json.loads(calls[0]['messages'][-1]['content'])
+        p.check('All original turns retained',[turn['text'] for turn in turns],[turn['original'] for turn in payload['conversation']])
+        p.check('Test order has no medicine flag',[],check_turn(turns[0]['text'],'I am ordering tests.',analysis=result['U1'])['mentions'])
+        p.check('Panadol retained',['Panadol'],[row['name'] for row in check_turn('Take Panadol.','Take Panadol.',analysis=result['U3'])['mentions']])
+        return
+    if case_id=='three-speaker-sources':
+        from scribe.soap_generator import _grounded_fallback
+        turns=[{'utterance_id':'U1','speaker':'Patient','text':'I have a cough.'},
+               {'utterance_id':'U2','speaker':'Attendant','speaker_relation':'mother','text':'My child has a fever.'},
+               {'utterance_id':'U3','speaker':'Doctor','text':'Get a blood test done.'}]
+        result=p.call('Build transcript-grounded draft',lambda:_grounded_fallback(patient={},visit_date='2030-01-02',issues=['provider_error'],transcript=turns))
+        p.check('Mother history retained',True,'My child has a fever.' in result['subjective'])
+        p.check('Mother statement retains own source',True,any('U2' in claim['evidence_ids'] for claim in result['claim_sources']['subjective']))
+        p.check('Order belongs in Plan',True,'Get a blood test done.' in result['plan'])
+        p.check('Order not reported as finding',False,'blood test' in result['objective'])
+        return
     if case_id in {'short-confirmation','short-age','short-phone','department-repeat','age-correction','unclear-answer'}:
         service=DemoCallService(groq_api_key='',groq_llm_model='',openrouter_api_key='')
         if case_id=='short-confirmation':

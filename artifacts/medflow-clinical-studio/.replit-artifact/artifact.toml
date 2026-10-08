@@ -12,16 +12,16 @@ paths = [ "/" ]
 localPort = 8000
 
 [services.development]
-run = "cd ../.. && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
+run = "cd ../.. && python scripts/run_demo.py"
 
 [services.production]
-build = [ "pnpm", "--filter", "@workspace/medflow-clinical-studio", "run", "build" ]
-serve = "static"
-publicDir = "artifacts/medflow-clinical-studio/dist/public"
+build = [ "python", "-m", "pip", "install", "-r", "requirements-deploy.txt" ]
 
-[[services.production.rewrites]]
-from = "/*"
-to = "/index.html"
+[services.production.run]
+args = ["python", "scripts/run_demo.py", "--published"]
+
+[services.production.health.startup]
+path = "/healthz"
 
 [services.env]
 PORT = "8000"

@@ -226,6 +226,8 @@ class NoteLifecycleService:
         medicines=medicine_report(transcript.utterances) if transcript else {'checks':[],'requires_review':False}
         medicines['soap_issues']=soap_issues(transcript.utterances,legacy) if transcript else []
         medicines['requires_review']=medicines['requires_review'] or bool(medicines['soap_issues'])
+        from app.services.medicine_evidence import medicine_evidence
+        medicine_receipts = medicine_evidence(transcript.utterances if transcript else [], legacy, version.version_number)
         from app.services.evidence_checks import note_evidence_report
         report = note_evidence_report(version.soap, transcript, state=version.status, version=version.version_number, note_id=note.note_id, approval={"doctor_id": note.approved_by_doctor_id, "approved_at": note.approved_at.isoformat() if note.approved_at else None} if version.status == NoteStatus.APPROVED_BY_DOCTOR else None)
         return {
@@ -251,6 +253,7 @@ class NoteLifecycleService:
                 "evidence": [item.model_dump(mode="json") for item in version.evidence],
                 "generated_by": "AI Medical Scribe",
                 "medicine_report":medicines,
+                "medicine_evidence":medicine_receipts,
                 "symptom_patterns":transcript.symptom_patterns if transcript else {},
                 "evidence_report": report,
             },

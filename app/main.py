@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware import Middleware
 
 from app.config import Settings
 from app.container import ApplicationContainer
@@ -56,7 +57,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         session_cookie=configured.session_cookie_name,
         max_age=configured.session_max_age_seconds,
         same_site="lax",
-        https_only=configured.is_production,
+        https_only=configured.secure_cookies,
     )
 
     @application.middleware("http")
@@ -96,6 +97,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(audio.router)
     application.include_router(workspace.router)
     application.include_router(demo_reports.router)
+    from app.routers.demo_deployment import router as demo_router
+    application.include_router(demo_router)
+    from app.services.demo_access import DemoAccessMiddleware
+    # Session must be populated before the demo gate handles HTTP/WebSockets.
+    # Insert the gate immediately inside SessionMiddleware.
+    session_index = next(i for i, middleware in enumerate(application.user_middleware) if middleware.cls is SessionMiddleware)
+    application.user_middleware.insert(session_index + 1, Middleware(
+        DemoAccessMiddleware, settings=configured))
     return application
 
 

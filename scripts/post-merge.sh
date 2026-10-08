@@ -1,4 +1,5 @@
 #!/bin/bash
 set -e
-pnpm install --frozen-lockfile
-pnpm --filter db push
+python -m pip install -r requirements-deploy.txt
+# FastAPI creates only its own tables on startup. Do not run the unrelated
+# Express/Drizzle template against the clinical demo database after pulling.

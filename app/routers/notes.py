@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.dependencies import actor_for_user, get_container, get_current_user
@@ -11,6 +11,24 @@ from medflow.domain.enums import NoteStatus
 
 
 router = APIRouter(prefix="/api/notes", tags=["notes"])
+
+
+@router.get('/{note_id}/export.pdf')
+async def export_pdf(note_id: str, request: Request, technical: bool = False,
+                     user: AuthUser = Depends(get_current_user)):
+    container = get_container(request)
+    try:
+        note, version = container.note_lifecycle_service.get(note_id, actor=actor_for_user(container,user))
+    except NoteLifecycleError as exc:
+        raise service_http_error(exc) from exc
+    from app.services.pdf_reports import visit_pdf
+    payload = _payload(container,note,version)
+    doctor = container.auth_repository.get_by_id(note.approved_by_doctor_id) if note.approved_by_doctor_id else user
+    content = visit_pdf(payload, container.patient_repository.get(note.patient_id), doctor.full_name if doctor else 'Not recorded', technical=technical)
+    container.audit_service.record('note_exported',actor_ref=f'doctor:{user.user_id}',action='export_pdf',patient_ref=note.patient_id,
+                                   resource_ref=note.note_id,metadata={'version':version.version_number,'technical':technical})
+    return Response(content,media_type='application/pdf',headers={'Cache-Control':'no-store',
+        'Content-Disposition':f'attachment; filename="medflow-{note.note_id}-v{version.version_number}.pdf"'})
 
 
 class SOAPSections(BaseModel):

@@ -42,7 +42,7 @@ class DemoReportTests(unittest.TestCase):
             if report['status']!='RUNNING':break
             time.sleep(.05)
         self.assertEqual(report['status'],'PASSED',json.dumps(report['cases']))
-        self.assertEqual(report['totals']['passed'],16)
+        self.assertEqual(report['totals']['passed'],20)
         self.assertGreater(report['duration_ms'],0)
         for case in report['cases']:
             self.assertTrue(case['checks']);self.assertGreaterEqual(case['duration_ms'],0)
@@ -53,6 +53,8 @@ class DemoReportTests(unittest.TestCase):
             self.assertEqual(db.execute('SELECT COUNT(*) FROM appointments').fetchone()[0],0)
         export=self.client.get(self.base+'/'+run_id+'/export');self.assertEqual(export.status_code,200)
         self.assertIn('attachment;',export.headers['content-disposition']);self.assertEqual(export.json()['cases'],report['cases'])
+        pdf=self.client.get(self.base+'/'+run_id+'/export.pdf');self.assertEqual(pdf.status_code,200)
+        self.assertTrue(pdf.content.startswith(b'%PDF'))
     def test_authentication_ownership_and_export_boundary(self):
         report=self.paused();self.client.post('/api/auth/logout')
         self.assertEqual(self.client.get(self.base).status_code,401)
@@ -60,7 +62,7 @@ class DemoReportTests(unittest.TestCase):
         other=self.c.auth_repository.create_doctor('Other','other-reports@example.test','SyntheticQA123!')
         self.client.post('/api/auth/login',json={'email':'other-reports@example.test','password':'SyntheticQA123!'})
         self.assertEqual(self.client.get(self.base).json()['runs'],[])
-        for suffix in ('','/export'):
+        for suffix in ('','/export','/export.pdf'):
             self.assertEqual(self.client.get(self.base+'/'+report['run_id']+suffix).status_code,404)
         self.assertEqual(self.client.post(self.base+'/'+report['run_id']+'/cancel',json={}).status_code,404)
         self.assertEqual(self.s.get(report['run_id'],self.user.user_id)['status'],'RUNNING')
@@ -86,7 +88,7 @@ class DemoReportTests(unittest.TestCase):
         result={'type':'case_finished','id':'short-age','status':'FAILED','checks':[{'label':'Age','expected':'23','actual':'22','status':'FAILED'}],'steps':[],'duration_ms':2,'error':None}
         self.s._event(rid,owner,result)
         cancelled=self.s.cancel(rid,owner);self.assertEqual(cancelled['status'],'CANCELLED')
-        self.assertEqual(cancelled['totals']['failed'],1);self.assertEqual(cancelled['totals']['skipped'],15)
+        self.assertEqual(cancelled['totals']['failed'],1);self.assertEqual(cancelled['totals']['skipped'],19)
         self.s._event(rid,owner,{'type':'case_started','id':'short-phone'})
         self.assertEqual(self.s.get(rid,owner),cancelled)
     def test_unmeasured_success_is_rejected_and_failures_are_retained(self):
@@ -98,14 +100,14 @@ class DemoReportTests(unittest.TestCase):
         self.assertEqual(self.s.get(rid,owner)['totals']['failed'],1)
     def test_restart_marks_unfinished_run_interrupted(self):
         report=self.paused();self.s.recover_interrupted();loaded=self.s.get(report['run_id'],self.user.user_id)
-        self.assertEqual(loaded['status'],'INTERRUPTED');self.assertEqual(loaded['totals']['skipped'],16)
+        self.assertEqual(loaded['status'],'INTERRUPTED');self.assertEqual(loaded['totals']['skipped'],20)
         self.assertIn('restarted',loaded['message'])
     def test_launch_failure_is_error_and_never_passes(self):
         with patch('app.services.demo_report_service.subprocess.Popen',side_effect=OSError('synthetic-start-error')):
             report=self.s.start(self.user.user_id,'synthetic')
             for thread in list(self.s._threads):thread.join(5)
         result=self.s.get(report['run_id'],self.user.user_id)
-        self.assertEqual(result['status'],'ERROR');self.assertEqual(result['totals']['passed'],0);self.assertEqual(result['totals']['skipped'],16)
+        self.assertEqual(result['status'],'ERROR');self.assertEqual(result['totals']['passed'],0);self.assertEqual(result['totals']['skipped'],20)
     def test_time_limit_marks_unfinished_scenarios_unevaluated(self):
         import io
         class Process:
@@ -123,7 +125,7 @@ class DemoReportTests(unittest.TestCase):
             report=self.s.start(self.user.user_id,'synthetic')
             for thread in list(self.s._threads):thread.join(5)
         loaded=self.s.get(report['run_id'],self.user.user_id)
-        self.assertEqual(loaded['status'],'ERROR');self.assertEqual(loaded['totals']['skipped'],16)
+        self.assertEqual(loaded['status'],'ERROR');self.assertEqual(loaded['totals']['skipped'],20)
         self.assertIn('time limit',loaded['message']);self.assertTrue(process.killed)
     def test_synthetic_environment_excludes_secrets_and_live_paths(self):
         with patch.dict(os.environ,{'OPENROUTER_API_KEY':'do-not-forward','MEDFLOW_DATABASE_PATH':'working-clinic.db','MEDFLOW_RECEPTIONIST_SERVICE_TOKEN':'do-not-forward'}):
@@ -153,7 +155,7 @@ class DemoReportTests(unittest.TestCase):
         result=self.s.get(report['run_id'],self.user.user_id)
         self.assertEqual(result['status'],'ERROR')
         self.assertEqual(result['totals']['passed'],0)
-        self.assertEqual(result['totals']['skipped'],16)
+        self.assertEqual(result['totals']['skipped'],20)
         self.assertEqual(result['runner_diagnostics']['missing_module'],'httpx')
         self.assertIn('requirements.txt',result['message'])
         self.assertNotIn('secret-provider-value',json.dumps(result))

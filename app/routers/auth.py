@@ -36,6 +36,8 @@ def _public_user(user) -> dict:
 
 async def signup(payload: SignupRequest, request: Request):
     container = request.app.state.container
+    if container.settings.is_demo:
+        raise HTTPException(403, 'Public registration is disabled for this synthetic demo. Use a seeded doctor account.')
     try:
         user = container.auth_repository.create_doctor(payload.full_name, payload.email, payload.password)
     except ValueError as exc:

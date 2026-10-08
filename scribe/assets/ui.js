@@ -1677,7 +1677,7 @@ function renderSoapSection(sectionKey, heading, value) {
     : "";
 
   return `
-    <div class="soap-section ${editing ? "editing" : ""}">
+    <div class="soap-section ${editing ? "editing" : ""}" data-soap-section="${escAttr(sectionKey)}">
       <div class="soap-section-head">
         <h5>${escHtml(heading)}</h5>
         <div class="soap-inline-actions">

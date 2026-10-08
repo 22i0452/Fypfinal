@@ -58,6 +58,17 @@ class Settings:
     groq_llm_model: str = "qwen/qwen3.8-27b"
     demo_testing_enabled: bool = True
     demo_live_text_enabled: bool = False
+    database_url: str = ""
+    demo_profiles_enabled: bool = False
+    demo_access_password: str = ""
+
+    @property
+    def is_demo(self) -> bool:
+        return self.app_env == "demo"
+
+    @property
+    def secure_cookies(self) -> bool:
+        return self.app_env in {"production", "demo"}
 
     @property
     def is_production(self) -> bool:
@@ -69,7 +80,7 @@ class Settings:
 
     @property
     def development_quick_start_available(self) -> bool:
-        return self.app_env == "development" and self.development_quick_start_enabled
+        return self.app_env in {"development", "demo"} and self.development_quick_start_enabled
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -81,7 +92,7 @@ class Settings:
             "DEVELOPMENT_QUICK_START_ENABLED",
             app_env == "development",
         )
-        if app_env != "development" and development_quick_start_enabled:
+        if app_env not in {"development", "demo"} and development_quick_start_enabled:
             raise RuntimeError("DEVELOPMENT_QUICK_START_ENABLED may only be true in development")
 
         default_database = ROOT_DIR / "consultation" / "consultation.db"
@@ -91,7 +102,7 @@ class Settings:
 
         session_secret = os.getenv("SESSION_SECRET", "medflow-ai-development-session-secret")
         otp_secret = os.getenv("OTP_SECRET", session_secret)
-        if app_env == "production":
+        if app_env in {"production", "demo"}:
             if len(session_secret) < 32 or session_secret == "medflow-ai-development-session-secret":
                 raise RuntimeError("A strong SESSION_SECRET is required in production")
             if len(otp_secret) < 32:
@@ -101,6 +112,9 @@ class Settings:
         development_receptionist_token = "medflow-development-receptionist-token"
         if not receptionist_service_token and app_env == "development":
             receptionist_service_token = development_receptionist_token
+        if not receptionist_service_token and app_env == "demo":
+            import hashlib
+            receptionist_service_token = hashlib.sha256((session_secret + ':receptionist').encode()).hexdigest()
         if app_env == "production" and (
             len(receptionist_service_token) < 32
             or receptionist_service_token == development_receptionist_token
@@ -111,14 +125,26 @@ class Settings:
         if app_env == "test" and (len(test_otp_code) != 6 or not test_otp_code.isdecimal()):
             raise RuntimeError("TEST_OTP_CODE must contain exactly six decimal digits")
 
-        storage_backend = os.getenv("STORAGE_BACKEND", "json").strip().lower()
-        if storage_backend != "json":
-            raise RuntimeError("Only the JSON development storage adapter is implemented")
+        database_url = os.getenv("DATABASE_URL", "").strip() if app_env != "test" else ""
+        storage_backend = os.getenv("STORAGE_BACKEND", "postgres" if database_url else "json").strip().lower()
+        if storage_backend not in {"json", "sql", "postgres"}:
+            raise RuntimeError("STORAGE_BACKEND must be json, sql or postgres")
+        if storage_backend == "postgres" and not database_url.startswith(('postgres://', 'postgresql://')):
+            raise RuntimeError("A PostgreSQL DATABASE_URL is required for persistent deployed storage")
+        if app_env == "demo" and storage_backend != "postgres":
+            raise RuntimeError("Published demos require PostgreSQL storage; local files cannot survive republishing")
+        demo_profiles_enabled = _bool_env('DEMO_PROFILES_ENABLED', app_env == 'demo')
+        demo_access_password = os.getenv('DEMO_ACCESS_PASSWORD', '')
+        if demo_profiles_enabled and len(demo_access_password) < 12:
+            raise RuntimeError("Set DEMO_ACCESS_PASSWORD to at least 12 characters for seeded demo sign-in")
 
         return cls(
             demo_testing_enabled=_bool_env('DEMO_TESTING_ENABLED', True),
             demo_live_text_enabled=_bool_env('DEMO_LIVE_TEXT_ENABLED', False),
             app_env=app_env,
+            database_url=database_url,
+            demo_profiles_enabled=demo_profiles_enabled,
+            demo_access_password=demo_access_password,
             database_path=database_path.resolve(),
             session_secret=session_secret,
             session_cookie_name=os.getenv("SESSION_COOKIE_NAME", "medflow_session"),

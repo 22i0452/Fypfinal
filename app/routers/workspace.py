@@ -36,7 +36,8 @@ async def consultation_root(request: Request):
 @router.get("/consultation/login")
 async def login_page(request: Request):
     if _authenticated(request):
-        return RedirectResponse('/testing' if request.query_params.get('next')=='/testing' else '/workspace', status_code=302)
+        target=request.query_params.get('next')
+        return RedirectResponse(target if target in {'/testing','/receptionist'} else '/workspace', status_code=302)
     return FileResponse(CONSULTATION_DIR / "login.html", media_type="text/html")
 
 

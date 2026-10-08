@@ -1,4 +1,4 @@
-PACK_VERSION = 'medflow-workflow-v1'
+PACK_VERSION = 'medflow-workflow-v2'
 
 # Expectations are authored before execution. The runner cannot accept arbitrary
 # user code, transcripts, patient IDs, paths, or provider URLs.
@@ -19,6 +19,10 @@ SCENARIOS = [
     ('transcript-correction', 'Saved conversation correction', 'SOAP', 'Correct a saved turn before generation', 'New transcript revision; original retained; stale generation rejected.', 'Real revision and API checks.'),
     ('coding-after-edit', 'SOAP edit and stale codes', 'Coding', 'Generate codes, edit SOAP, attempt old approval', 'Old code evidence remains readable; old approval blocked; new version can generate.', 'Synthetic code candidate; catalog correctness unassessed.'),
     ('patient-access', 'Patient access boundary', 'Access', 'Another signed-in doctor opens this fictional visit', 'Deny conversation and code-source access.', 'Actual patient authorization checks.'),
+    ('medicine-dose-stop', 'Medicine dose and stop instruction', 'Medicines', 'Take Panadol 500 mg. Do not take Motilium 10 mg.', 'Preserve both names, doses and stop wording; flag dropped or changed wording.', 'Written synthetic transcript; deterministic preservation checks, not live ASR.'),
+    ('medicine-context', 'Full consultation medicine context', 'Medicines', 'Urdu test order alongside Panadol in another turn', 'Send every source turn in one request; test is not a medicine; Panadol remains.', 'Controlled LLM entity response; actual translation checks, not model accuracy.'),
+    ('three-speaker-sources', 'Doctor, child and mother', 'Consultation', 'Patient reports cough; mother reports fever; doctor orders blood test.', 'Keep collateral mother history source-linked and ordered test outside findings.', 'Explicit supplied roles; does not measure acoustic speaker identification.'),
+    ('soap-medicine-edit', 'SOAP medicine removal', 'SOAP', 'Reviewed medicine in transcript; edit SOAP to omit its name', 'Missing source medicine is flagged before approval.', 'Actual medicine-to-SOAP checks on synthetic text.'),
 ]
 LIVE_SCENARIOS = [
     ('live-correction', 'Live text: corrected age', 'Live text', 'نہیں، میری عمر 23 سال ہے', 'Extract age 23 from a correction to a held age of 22.', 'Real OpenRouter extraction; no audio.'),
