@@ -2,4 +2,4 @@
 - [Preview route precedence](artifact-routing.md) — specific artifact paths such as `/api` can shadow a root web service and route requests to the wrong backend.
 - [Git data safety](git-data-safety.md) — never inspect clinic records or publish database/media contents; check outgoing commits before any push.
 - [Workflow callback argument shape](workflow-callbacks.md) — `removeWorkflow` expects a `{name}` object in CodeExecution despite the skill's string example.
-- [Preview proxy diagnosis](preview-proxy.md) — a healthy local port and workflow do not prove the Replit preview proxy is forwarding requests.
+- [Preview proxy diagnosis](preview-proxy.md) — check for a registered root service before treating a healthy local server with a broken preview as platform failure.

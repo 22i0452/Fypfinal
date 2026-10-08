@@ -1,0 +1,23 @@
+kind = "web"
+previewPath = "/"
+title = "MedFlow Clinical Studio"
+description = "Preview routing adapter for the existing MedFlow FastAPI server. Forwards the workspace preview to the existing application without replacing its UI, database, or secrets."
+version = "1.0.0"
+id = "artifacts/medflow-preview"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20788
+
+[services.development]
+run = "pnpm --filter @workspace/medflow-preview run dev"
+
+[services.production]
+build = ["python", "-m", "pip", "install", "-r", "requirements-deploy.txt"]
+run = ["python", "scripts/run_demo.py", "--published"]
+
+[services.env]
+PORT = "20788"
+BASE_PATH = "/"
