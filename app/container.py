@@ -35,6 +35,7 @@ from app.services import (
 from app.services.confirmation_call_service import ConfirmationCallService
 from app.services.demo_call_service import DemoCallService
 from app.services.process_trace import ProcessTraceStore
+from app.services.demo_report_service import DemoReportService
 from app.services.consultation_review import ConsultationReviewService
 from app.services.inbound_call_service import CallMediaStore, InboundCallService
 from medflow.orchestration import ClinicWorkflowOrchestrator
@@ -197,6 +198,7 @@ class ApplicationContainer:
             transcripts=self.transcript_repository,
         )
         self.consultation_review = ConsultationReviewService(self)
+        self.demo_report_service = DemoReportService(self.database, settings)
 
     def initialize(self) -> None:
         if self.settings.is_production and self.settings.storage_backend == "json":
@@ -207,6 +209,7 @@ class ApplicationContainer:
             )
         self.database.initialize()
         self.process_trace.initialize()
+        self.demo_report_service.initialize()
         self.consultation_review.store.initialize()
         self.database.seed_clinic_configuration(self.settings.clinic_seed_path)
         self.database.connect_existing_doctors_to_profiles()

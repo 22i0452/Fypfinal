@@ -28,6 +28,7 @@ from app.routers import (
     receptionist_desk,
     workflows,
     workspace,
+    demo_reports,
 )
 
 
@@ -42,7 +43,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(application: FastAPI):
         container.initialize()
         container.consultation_review.recover_interrupted()
+        container.demo_report_service.recover_interrupted()
         yield
+        container.demo_report_service.shutdown()
 
     application = FastAPI(title="MedFlowAI Clinic Platform", lifespan=lifespan)
     application.state.container = container
@@ -90,6 +93,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(assistant.router)
     application.include_router(audio.router)
     application.include_router(workspace.router)
+    application.include_router(demo_reports.router)
     return application
 
 

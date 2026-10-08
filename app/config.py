@@ -56,6 +56,8 @@ class Settings:
     openrouter_stt_model: str = "openai/whisper-large-v3"
     groq_api_key: str = ""
     groq_llm_model: str = "qwen/qwen3.8-27b"
+    demo_testing_enabled: bool = True
+    demo_live_text_enabled: bool = False
 
     @property
     def is_production(self) -> bool:
@@ -114,6 +116,8 @@ class Settings:
             raise RuntimeError("Only the JSON development storage adapter is implemented")
 
         return cls(
+            demo_testing_enabled=_bool_env('DEMO_TESTING_ENABLED', True),
+            demo_live_text_enabled=_bool_env('DEMO_LIVE_TEXT_ENABLED', False),
             app_env=app_env,
             database_path=database_path.resolve(),
             session_secret=session_secret,

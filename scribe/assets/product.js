@@ -7,6 +7,7 @@ resolveCodingNote=function(){
   return null;
 };
 function goMedflowHome(){if(canLeaveVisit())location.assign('/');}
+function goDemoTests(){if(canLeaveVisit())location.assign('/testing');}
 function codingDisabledReason(){
   if(!workspaceCodingEnabled)return 'Clinical coding has not been enabled for this clinic.';
   if(!soapLastSavedNoteId)return 'Generate and save a SOAP draft first.';

@@ -76,6 +76,8 @@ let server,browser;
  const receipt=await p.evaluate(()=>state.demoSaved);assert.equal(receipt.confirmed,true);assert.equal(receipt.booking.appointment.practitioner_id,practitioner);
  assert.equal(await p.evaluate(()=>liveConversation.controller.active),false);assert.equal(await p.evaluate(()=>qaSignal.stream.getTracks()[0].readyState),'ended');
  console.log('Full hands-free booking: short Urdu answers, real available slot, final confirmation, exact doctor and saved handoff passed.');
+ // Presentation uses the returned voice-call receipt and cannot send another turn.
+ const playbackCounts={stt,turns,tts};await p.locator('[data-present-reception]').click();await p.locator('[data-presentation-skip]').click();assert.ok((await p.locator('#presentationResults').innerText()).includes(receipt.booking.appointment.appointment_id));await p.locator('[data-presentation-close]').click();assert.deepEqual({stt,turns,tts},playbackCounts);assert.equal(await p.evaluate(()=>state.demoSaved.booking.appointment.appointment_id),receipt.booking.appointment.appointment_id);
  // Start a second call and test pause, switching, interruption and failures.
  await p.locator('#demoVoiceBtn').click();await p.waitForFunction(()=>!state.demoBusy && liveConversation.controller.phase==='listening');
  await p.locator('#liveVoicePause').click();assert.equal(await p.evaluate(()=>qaSignal.stream.getTracks()[0].enabled),false);
