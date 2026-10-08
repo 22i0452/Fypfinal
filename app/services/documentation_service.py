@@ -197,7 +197,8 @@ class DocumentationService:
                     }
                 )
             )
-        return translated
+        from app.services.conversation_relevance import classify
+        return classify(translated, patient_context=self._patient_context(patient), patient_ref=patient.patient_id)
 
     def save_transcript(
         self,
@@ -246,7 +247,9 @@ class DocumentationService:
         context = self.lifecycle.start_documentation(workflow_id, actor=actor)
         if context.encounter.encounter_id != encounter_id or context.encounter.patient_id != patient.patient_id:
             raise DocumentationError("ENCOUNTER_MISMATCH", "Transcript encounter does not match the workflow")
-        conversation = [self.utterance_payload(item, translated=True) for item in transcript.utterances]
+        from app.services.conversation_relevance import generation_turns
+        selected = generation_turns(transcript.utterances)
+        conversation = [self.utterance_payload(item, translated=True) for item in selected]
         legacy_soap = self._components()[2].generate(
             self._patient_context(patient),
             conversation,
@@ -257,7 +260,7 @@ class DocumentationService:
         if latest.state.value != "DOCUMENTATION_PROCESSING" or latest.note_id:
             raise DocumentationError("VERSION_CONFLICT", "The visit changed during generation. Reload it before continuing.")
         note_id = new_id("NOTE")
-        structured = self.build_structured_soap(note_id, legacy_soap, transcript)
+        structured = self.build_structured_soap(note_id, legacy_soap, transcript.model_copy(update={'utterances': selected}))
         version = SOAPNoteVersion(
             note_version_id=new_id("NV"),
             note_id=note_id,
@@ -326,6 +329,7 @@ class DocumentationService:
             "medicine_checks": check_turn(utterance.original_text,utterance.clinical_english,utterance.medicine_review,context=utterance.medicine_context,analysis=utterance.medicine_suggestions),
             "medicine_review": utterance.medicine_review,
             "medicine_context":utterance.medicine_context,
+            "documentation_relevance": utterance.documentation_relevance,
             "medicine_suggestions":utterance.medicine_suggestions if utterance.medicine_suggestions.get('fingerprint')==fingerprint(utterance.original_text,utterance.clinical_english) else {},
         }
 

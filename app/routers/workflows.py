@@ -201,6 +201,8 @@ class ConversationCorrection(BaseModel):
     clinical_english: str | None = Field(default=None, min_length=1, max_length=4000)
     medicines_reviewed: bool | None = None
     medicine_spellings: dict[str,str] = Field(default_factory=dict)
+    relevance_status: str | None = Field(default=None, pattern='^(included|excluded|review)$')
+    relevance_reason: str | None = Field(default=None, min_length=1, max_length=240)
 
     @model_validator(mode="after")
     def valid_correction(self):
@@ -213,7 +215,9 @@ class ConversationCorrection(BaseModel):
             raise ValueError('Medicine spellings must be short, nonempty source/name pairs')
         if self.medicine_spellings and not self.medicines_reviewed:
             raise ValueError('Confirm the medicine wording when supplying a spelling')
-        if self.speaker is None and self.original_text is None and self.clinical_english is None and not self.medicines_reviewed:
+        if bool(self.relevance_status) != bool(self.relevance_reason and self.relevance_reason.strip()):
+            raise ValueError('Supply a relevance status and reason together')
+        if self.speaker is None and self.original_text is None and self.clinical_english is None and not self.medicines_reviewed and not self.relevance_status:
             raise ValueError("Supply a role or wording correction")
         return self
 

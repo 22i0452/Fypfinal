@@ -88,6 +88,8 @@ class NoteLifecycleService:
             actor=actor,
             change_reason=change_reason,
         )
+        if any(sections[k] != DocumentationService.legacy_soap(current.soap)[k] for k in ('subjective', 'objective', 'assessment', 'plan')):
+            version.prescription = None
         updated = note.model_copy(
             update={
                 "current_version_id": version.note_version_id,
@@ -229,6 +231,7 @@ class NoteLifecycleService:
         from app.services.medicine_evidence import medicine_evidence
         medicine_receipts = medicine_evidence(transcript.utterances if transcript else [], legacy, version.version_number)
         from app.services.evidence_checks import note_evidence_report
+        from app.services.conversation_relevance import report as relevance_report
         report = note_evidence_report(version.soap, transcript, state=version.status, version=version.version_number, note_id=note.note_id, approval={"doctor_id": note.approved_by_doctor_id, "approved_at": note.approved_at.isoformat() if note.approved_at else None} if version.status == NoteStatus.APPROVED_BY_DOCTOR else None)
         return {
             "note_id": note.note_id,
@@ -256,6 +259,8 @@ class NoteLifecycleService:
                 "medicine_evidence":medicine_receipts,
                 "symptom_patterns":transcript.symptom_patterns if transcript else {},
                 "evidence_report": report,
+                "relevance_report": relevance_report(transcript.utterances if transcript else [], version.soap),
+                "prescription": version.prescription,
             },
             "transcript": [DocumentationService.utterance_payload(item, translated=True) for item in transcript.utterances]
             if transcript
@@ -283,6 +288,7 @@ class NoteLifecycleService:
             template_id=current.template_id,
             created_by_actor_id=actor.actor_id,
             change_reason=change_reason,
+            prescription=current.prescription,
         )
 
     @staticmethod

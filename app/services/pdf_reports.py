@@ -95,6 +95,77 @@ def visit_pdf(payload, patient, doctor, *, technical=False):
         reference=f"{payload['note_id']} / v{payload['version']} - Synthetic demo; not a clinical prescription")
 
 
+def prescription_pdf(payload, patient, doctor):
+    """Readable Rx sheet with separately labelled stops and doctor-entered fields."""
+    from reportlab.platypus import LongTable, TableStyle
+    prescription = payload['soap']['prescription']
+    stream = BytesIO()
+    if 'MedflowSans' not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(TTFont('MedflowSans', str(Path(__file__).resolve().parents[2] / 'scribe/assets/fonts/DejaVuSans.ttf')))
+    styles = getSampleStyleSheet()
+    body = ParagraphStyle('RxBody', fontName='MedflowSans', fontSize=9.5, leading=14,
+        textColor=colors.HexColor('#283b35'), spaceAfter=7, splitLongWords=True)
+    heading = ParagraphStyle('RxHeading', parent=body, fontSize=10, leading=15,
+        textColor=colors.HexColor('#15584a'), spaceBefore=13, spaceAfter=7)
+    title = ParagraphStyle('RxTitle', parent=body, fontSize=30, leading=36, spaceAfter=8)
+    small = ParagraphStyle('RxSmall', parent=body, fontSize=7.5, leading=11)
+
+    def p(value, style=body):
+        text = str(value or 'Not documented')
+        if re.search('[\u0600-\u06ff]', text):
+            import arabic_reshaper
+            from bidi.algorithm import get_display
+            text = get_display(arabic_reshaper.reshape(text))
+        return Paragraph(escape(text).replace('\n', '<br/>'), style)
+
+    content = [p('MEDFLOW / CLINICAL STUDIO', heading), p('Prescription', title),
+        p(f"{doctor} | {payload['created_at'][:10]} | Doctor-approved version {payload['version']}", small),
+        HRFlowable(width='100%', color=colors.HexColor('#c7d3cd')), Spacer(1, 10),
+        p(f"{patient.name} | Age: {patient.age_text or 'Not documented'}"),
+        p(f"Encounter {payload['encounter_id']}", small)]
+    soap = payload['soap']
+    for label, value in [('Symptoms & history', soap['subjective']), ('Findings', soap['objective']), ('Assessment', soap['assessment'])]:
+        content.extend([p(label, heading), p(value)])
+    content.append(p('Rx / Medication instructions', heading))
+    positive = [r for r in prescription['medicines'] if r['action'] in {'take', 'continue'}]
+    caution = [r for r in prescription['medicines'] if r['action'] in {'stop', 'avoid'}]
+    if positive:
+        rows = [[p('MEDICINE', small), p('DOSE / ROUTE', small), p('WHEN / HOW LONG', small)]]
+        for r in positive:
+            rows.append([p(r['name'] + '\n' + r['action'].title()),
+                p((r['dose'] or 'Dose not documented') + '\n' + (r['route'] or 'Route not documented')),
+                p((r['frequency'] or 'Frequency not documented') + '\n' + (r['duration'] or 'Duration not documented'))])
+            rows.append([p('Instructions: ' + r['instructions']), '', ''])
+        table = LongTable(rows, colWidths=[61*mm, 49*mm, 60*mm], repeatRows=1, splitInRow=1, hAlign='LEFT')
+        commands = [('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#edf3ef')), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 9), ('RIGHTPADDING', (0, 0), (-1, -1), 9),
+            ('TOPPADDING', (0, 0), (-1, -1), 8), ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LINEBELOW', (0, 0), (-1, 0), .6, colors.HexColor('#c7d3cd'))]
+        for i in range(2, len(rows), 2):
+            commands.extend([('SPAN', (0, i), (-1, i)), ('LINEBELOW', (0, i), (-1, i), .4, colors.HexColor('#dce5df'))])
+        table.setStyle(TableStyle(commands)); content.append(table)
+    else:
+        content.append(p('No take/continue medication instructions recorded.'))
+    if caution:
+        content.append(p('Stop / Avoid', heading))
+        for r in caution:
+            content.extend([p(r['action'].upper() + ' ' + r['name'], heading), p(r['instructions'])])
+    for key, label in [('tests', 'Tests & investigations'), ('advice', 'Advice'), ('follow_up', 'Follow-up')]:
+        content.extend([p(label, heading), p(prescription.get(key))])
+    content.extend([Spacer(1, 10), HRFlowable(width='100%', color=colors.HexColor('#c7d3cd')),
+        p('Recorded and approved by ' + doctor, heading),
+        p('Doctor-entered prescription fields are recorded separately from the original conversation. Blank fields have not been guessed. FYP synthetic-data demonstration.', small)])
+    doc = SimpleDocTemplate(stream, pagesize=A4, leftMargin=20*mm, rightMargin=20*mm, topMargin=16*mm,
+        bottomMargin=21*mm, title='Medflow Prescription', author=doctor)
+
+    def footer(canvas, document):
+        canvas.saveState(); canvas.setFont('MedflowSans', 7); canvas.setFillColor(colors.HexColor('#52655e'))
+        canvas.drawString(20*mm, 11*mm, f"{payload['note_id']} / v{payload['version']} | FYP demonstration")
+        canvas.drawRightString(A4[0]-20*mm, 11*mm, f'Page {document.page}'); canvas.restoreState()
+    doc.build(content, onFirstPage=footer, onLaterPages=footer)
+    return stream.getvalue()
+
+
 def _rate_text(rate):
     return f"{rate['numerator']} / {rate['denominator']} ({rate['percent']}%)" if rate.get('denominator') else 'Not tested'
 

@@ -10,6 +10,7 @@ from security_guardrails import require_authorized
 from security_guardrails.telemetry import collect_provider_events
 from app.services.evidence_checks import note_evidence_report
 from medflow.medicines import report as medicine_report, clinician_review, check_turn
+from app.services.conversation_relevance import report as relevance_report
 
 
 class ConsultationReviewError(RuntimeError):
@@ -67,6 +68,7 @@ class ConsultationReviewService:
             'utterances': [self.c.documentation_service.utterance_payload(item, translated=True) for item in transcript.utterances],
             'medicine_report':medicine_report(transcript.utterances),
             'symptom_patterns':transcript.symptom_patterns,
+            'relevance_report': relevance_report(transcript.utterances),
             'raw_asr_text':transcript.raw_asr_text}
 
     def prepare(self, workflow_id, transcript, run_id, template_id, auto_soap):
@@ -171,7 +173,16 @@ class ConsultationReviewService:
                     result.append(item.model_copy(update={'clinical_english':english,'medicine_review':review,
                         'medicine_checks':check_turn(item.original_text,english,review,context=item.medicine_context,analysis=item.medicine_suggestions)}))
                 return result
-            translated = self._trace_call(claimed, 'translation', translate_corrected, lambda result: {'utterances': [self.c.documentation_service.utterance_payload(item, translated=True) for item in result], 'revision': revision+1, 'clinician_corrected_turns': list(changes)})
+            relevance_only = all(set(k for k, v in c.items() if v is not None and v != {}) <= {'utterance_id', 'relevance_status', 'relevance_reason'} for c in changes.values())
+            if relevance_only:
+                translated = [t.model_copy(update={'transcript_id': new_transcript_id}) for t in source.utterances]
+            else:
+                translated = self._trace_call(claimed, 'translation', translate_corrected, lambda result: {'utterances': [self.c.documentation_service.utterance_payload(item, translated=True) for item in result], 'revision': revision+1, 'clinician_corrected_turns': list(changes)})
+            from app.services.conversation_relevance import apply_overrides
+            try:
+                translated = apply_overrides(translated, corrections, actor)
+            except ValueError as exc:
+                raise ConsultationReviewError('INVALID_RELEVANCE', str(exc)) from exc
             latest = self.context(workflow_id, actor)
             if latest.state != WorkflowState.TRANSCRIPT_REVIEW or latest.note_id:
                 raise ConsultationReviewError('VERSION_CONFLICT', 'The visit changed during correction.')

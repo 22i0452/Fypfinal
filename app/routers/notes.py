@@ -8,9 +8,67 @@ from app.repositories import AuthUser
 from app.routers.common import service_http_error
 from app.services import NoteLifecycleError
 from medflow.domain.enums import NoteStatus
+from app.services.prescription_service import PrescriptionEdit
+import asyncio
 
 
 router = APIRouter(prefix="/api/notes", tags=["notes"])
+
+
+class PreparePrescription(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    expected_version: int = Field(ge=1)
+
+
+@router.post('/{note_id}/prescription/prepare')
+async def prepare_prescription(note_id: str, payload: PreparePrescription, request: Request, user: AuthUser = Depends(get_current_user)):
+    from app.services.prescription_service import draft
+    container = get_container(request); actor = actor_for_user(container, user)
+    try:
+        service = container.note_lifecycle_service
+        note, version = service.get(note_id, actor=actor)
+        service._require(actor, 'create_note_draft', note.patient_id)
+        if version.version_number != payload.expected_version:
+            raise NoteLifecycleError('VERSION_CONFLICT', 'Reopen the latest prescription.')
+        patient = container.patient_repository.get(note.patient_id)
+        value = await asyncio.to_thread(draft, service, note, version, extract=True,
+            patient_context=container.documentation_service._patient_context(patient))
+        latest, _ = service.get(note_id, actor=actor)
+        if latest.current_version_id != version.note_version_id:
+            raise NoteLifecycleError('VERSION_CONFLICT', 'The note changed during preparation. Reopen it.')
+        return {'note_id': note_id, 'version': version.version_number, 'prescription': value}
+    except NoteLifecycleError as exc:
+        raise service_http_error(exc) from exc
+
+
+@router.patch('/{note_id}/prescription')
+async def save_prescription(note_id: str, payload: PrescriptionEdit, request: Request, user: AuthUser = Depends(get_current_user)):
+    from app.services.prescription_service import save
+    container = get_container(request)
+    try:
+        note, version = save(container.note_lifecycle_service, note_id, actor_for_user(container, user), payload)
+        return _payload(container, note, version)
+    except NoteLifecycleError as exc:
+        raise service_http_error(exc) from exc
+
+
+@router.get('/{note_id}/prescription.pdf')
+async def export_prescription(note_id: str, request: Request, user: AuthUser = Depends(get_current_user)):
+    from app.services.pdf_reports import prescription_pdf
+    container = get_container(request)
+    try:
+        note, version = container.note_lifecycle_service.get(note_id, actor=actor_for_user(container, user))
+        if note.state != NoteStatus.APPROVED_BY_DOCTOR or not version.prescription or not version.prescription.get('confirmed'):
+            raise NoteLifecycleError('DOCTOR_APPROVAL_REQUIRED', 'Save the prescription and approve the current note before exporting.')
+        doctor = container.auth_repository.get_by_id(note.approved_by_doctor_id) if note.approved_by_doctor_id else None
+        content = prescription_pdf(_payload(container, note, version), container.patient_repository.get(note.patient_id),
+            doctor.full_name if doctor else user.full_name)
+        container.audit_service.record('prescription_exported', actor_ref=f'doctor:{user.user_id}', action='export_pdf',
+            patient_ref=note.patient_id, resource_ref=note_id, metadata={'version': version.version_number})
+        return Response(content, media_type='application/pdf', headers={'Cache-Control': 'no-store',
+            'Content-Disposition': f'attachment; filename="medflow-prescription-{note_id}-v{version.version_number}.pdf"'})
+    except NoteLifecycleError as exc:
+        raise service_http_error(exc) from exc
 
 
 @router.get('/{note_id}/export.pdf')
@@ -264,5 +322,29 @@ async def correct_roles(note_id: str, payload: RoleRevisionRequest, request: Req
     container = get_container(request)
     try:
         return await asyncio.to_thread(revise_roles, container, note_id, actor_for_user(container,user), payload.expected_version, [item.model_dump() for item in payload.corrections])
+    except NoteLifecycleError as exc:
+        raise service_http_error(exc) from exc
+
+
+class RelevanceCorrection(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    utterance_id: str = Field(min_length=1, max_length=80)
+    relevance_status: str = Field(pattern='^(included|excluded|review)$')
+    relevance_reason: str = Field(min_length=1, max_length=240)
+
+
+class RelevanceRevision(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    expected_version: int = Field(ge=1)
+    corrections: list[RelevanceCorrection] = Field(min_length=1, max_length=100)
+
+
+@router.post('/{note_id}/relevance')
+async def correct_relevance(note_id: str, payload: RelevanceRevision, request: Request, user: AuthUser = Depends(get_current_user)):
+    from app.services.transcript_revision import revise_relevance
+    container = get_container(request)
+    try:
+        return await asyncio.to_thread(revise_relevance, container, note_id, actor_for_user(container, user),
+            payload.expected_version, [c.model_dump() for c in payload.corrections])
     except NoteLifecycleError as exc:
         raise service_http_error(exc) from exc

@@ -165,6 +165,7 @@ class TranscriptUtterance(DomainModel):
     medicine_review: dict | None = None
     medicine_suggestions: dict = Field(default_factory=dict)
     medicine_context: bool = False
+    documentation_relevance: dict = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_timestamps(self) -> "TranscriptUtterance":
@@ -222,6 +223,7 @@ class SOAPNoteVersion(DomainModel):
     created_by_actor_id: str
     created_at: datetime = Field(default_factory=utc_now)
     change_reason: str = ""
+    prescription: dict | None = None
 
 
 class SOAPNote(DomainModel):
