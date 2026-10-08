@@ -33,6 +33,7 @@ from security_guardrails import (
     require_authorized,
 )
 from receptionist.urdu_stt_utils import normalize_text, prepare_audio_for_stt, resample_audio
+from medflow.medicines import check_turn, report as medicine_report, stt_vocabulary_hint, protect, restore, translation_issues
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -71,6 +72,13 @@ _REVIEW_WARNING_MESSAGES = {
         "Unsupported medication or dosage content was removed from the AI draft."
     ),
 }
+
+
+class TranscribedText(str):
+    def __new__(cls, text, raw_asr_text):
+        value=super().__new__(cls,text)
+        value.raw_asr_text=raw_asr_text
+        return value
 
 
 class DocumentationError(RuntimeError):
@@ -121,13 +129,14 @@ class DocumentationService:
             actor=Actor.system("system_agent", patient_id),
             patient_ref=patient_id,
             language="ur",
-            prompt=URDU_STT_PROMPT,
+            prompt=URDU_STT_PROMPT+stt_vocabulary_hint(),
             response_format="text",
         )
-        cleaned = normalize_text(transcript)
+        raw = normalize_text(transcript)
+        cleaned = raw
         if len(cleaned) >= 20:
             cleaned = self._cleaner().clean(cleaned, patient_ref=patient_id)
-        return normalize_text(cleaned)
+        return TranscribedText(normalize_text(cleaned),raw)
 
     def diarize(
         self,
@@ -137,11 +146,20 @@ class DocumentationService:
         transcript_id: str,
     ) -> list[TranscriptUtterance]:
         patient_context = self._patient_context(patient)
+        protected_text,medicine_rows=protect(str(transcript_text),transcript_id)
         entries = self._components()[0].diarize_transcript(
-            transcript_text,
+            protected_text,
             patient_context=patient_context,
             patient_ref=patient.patient_id,
         )
+        for entry in entries:
+            original=restore(str(entry.get('original_text') or entry.get('text') or ''),medicine_rows,english=False)
+            entry.update(original_text=original,text=original)
+        combined=' '.join(str(entry.get('original_text') or '') for entry in entries)
+        if translation_issues(str(transcript_text),combined,[{**row,'status':'literal'} for row in medicine_rows]):
+            # Role assignment cannot change source medicines. Fall back to an
+            # explicit role-review turn rather than accept rewritten evidence.
+            entries=[]
         if not entries:
             entries = [
                 {
@@ -170,6 +188,8 @@ class DocumentationService:
                     update={
                         "clinical_english": str(item.get("clinical_english") or item.get("text") or "").strip(),
                         "needs_review": utterance.needs_review or bool(item.get("needs_review")),
+                        "medicine_checks": item.get('medicine_checks') or check_turn(utterance.original_text,str(item.get('clinical_english') or item.get('text') or '')),
+                        "medicine_review": None,
                     }
                 )
             )
@@ -182,13 +202,20 @@ class DocumentationService:
         patient_id: str,
         encounter_id: str,
         utterances: list[TranscriptUtterance],
+        raw_asr_text: str | None = None,
+        source_transcript_id: str | None = None,
     ) -> TranscriptRecord:
+        existing=self.transcripts.get(transcript_id)
+        if existing and (existing.patient_id!=patient_id or existing.encounter_id!=encounter_id):
+            raise DocumentationError('PATIENT_MISMATCH','Transcript belongs to a different visit')
         return self.transcripts.save(
             TranscriptRecord(
                 transcript_id=transcript_id,
                 patient_id=patient_id,
                 encounter_id=encounter_id,
                 utterances=utterances,
+                raw_asr_text=raw_asr_text if raw_asr_text is not None else existing.raw_asr_text if existing else '',
+                source_transcript_id=source_transcript_id or (existing.source_transcript_id if existing else None),
             )
         )
 
@@ -203,6 +230,8 @@ class DocumentationService:
         template_id: str | None = None,
     ) -> DocumentationDraft:
         require_authorized(actor, "create_note_draft", patient.patient_id)
+        if medicine_report(transcript.utterances)['requires_review']:
+            raise DocumentationError('MEDICINE_REVIEW_REQUIRED','Review medicine wording in the source conversation before generating SOAP.')
         try:
             template = self.templates.require_active(template_id)
         except ValueError as exc:
@@ -268,6 +297,7 @@ class DocumentationService:
             **legacy_soap,
             "state": NoteStatus.AI_DRAFT.value,
             "structured_soap": structured.model_dump(mode="json"),
+            "medicine_report": medicine_report(transcript.utterances),
         }
         return DocumentationDraft(note, version, transcript, legacy_soap)
 
@@ -286,6 +316,8 @@ class DocumentationService:
             "clinical_english": utterance.clinical_english,
             "text": text,
             "needs_review": utterance.needs_review,
+            "medicine_checks": check_turn(utterance.original_text,utterance.clinical_english,utterance.medicine_review),
+            "medicine_review": utterance.medicine_review,
         }
 
     @staticmethod

@@ -199,6 +199,8 @@ class ConversationCorrection(BaseModel):
     speaker_relation: str | None = Field(default=None, max_length=40)
     original_text: str | None = Field(default=None, min_length=1, max_length=4000)
     clinical_english: str | None = Field(default=None, min_length=1, max_length=4000)
+    medicines_reviewed: bool | None = None
+    medicine_spellings: dict[str,str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def valid_correction(self):
@@ -207,7 +209,11 @@ class ConversationCorrection(BaseModel):
         for value in (self.original_text,self.clinical_english):
             if value is not None and not value.strip():
                 raise ValueError("Turn text cannot be blank")
-        if self.speaker is None and self.original_text is None and self.clinical_english is None:
+        if len(self.medicine_spellings)>20 or any(not key.strip() or len(key)>100 or not value.strip() or len(value)>100 for key,value in self.medicine_spellings.items()):
+            raise ValueError('Medicine spellings must be short, nonempty source/name pairs')
+        if self.medicine_spellings and not self.medicines_reviewed:
+            raise ValueError('Confirm the medicine wording when supplying a spelling')
+        if self.speaker is None and self.original_text is None and self.clinical_english is None and not self.medicines_reviewed:
             raise ValueError("Supply a role or wording correction")
         return self
 

@@ -161,6 +161,8 @@ class TranscriptUtterance(DomainModel):
     clinical_english: str = ""
     confidence: float | None = Field(default=None, ge=0, le=1)
     needs_review: bool = False
+    medicine_checks: dict = Field(default_factory=dict)
+    medicine_review: dict | None = None
 
     @model_validator(mode="after")
     def validate_timestamps(self) -> "TranscriptUtterance":
@@ -176,6 +178,8 @@ class TranscriptRecord(DomainModel):
     patient_id: str
     encounter_id: str
     utterances: list[TranscriptUtterance] = Field(default_factory=list)
+    raw_asr_text: str = ""
+    source_transcript_id: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
 
 

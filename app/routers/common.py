@@ -31,6 +31,7 @@ def service_http_error(error: Exception, *, default_status: int = status.HTTP_40
         "RESEND_LIMIT",
         "OTP_ALREADY_USED",
         "ACTION_IN_PROGRESS",
+        "MEDICINE_REVIEW_REQUIRED",
     }:
         status_code = status.HTTP_409_CONFLICT
     elif code in {

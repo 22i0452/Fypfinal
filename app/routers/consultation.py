@@ -195,7 +195,7 @@ async def consultation_websocket(websocket: WebSocket):
             if len(transcript_text.strip()) < 10:
                 raise DocumentationError("NO_SPEECH", "No speech was detected in the recording.")
 
-            await trace("speech", "complete", {"text":transcript_text, "language":"Urdu", "mode":"After-stop transcription and cleanup"})
+            await trace("speech", "complete", {"text":transcript_text, "language":"Urdu", "mode":"After-stop transcription and cleanup", "raw_asr_text":getattr(transcript_text,'raw_asr_text',str(transcript_text))})
             await trace("roles", "running")
             patient = session["patient"]
             transcript_id = new_id("TRN")
@@ -216,7 +216,7 @@ async def consultation_websocket(websocket: WebSocket):
                 }
             )
 
-            original_transcript = container.documentation_service.save_transcript(transcript_id=transcript_id,patient_id=patient_id,encounter_id=encounter_id,utterances=diarized)
+            original_transcript = container.documentation_service.save_transcript(transcript_id=transcript_id,patient_id=patient_id,encounter_id=encounter_id,utterances=diarized,raw_asr_text=getattr(transcript_text,'raw_asr_text',str(transcript_text)))
             container.consultation_review.prepare(workflow_id, original_transcript, run_id, session["template_id"], session["auto_soap"])
             await trace("translation", "running")
             await send({"type": "processing", "message": "Translating transcript to English..."})
@@ -238,7 +238,7 @@ async def consultation_websocket(websocket: WebSocket):
             await trace("translation", "complete", {"utterances":english_payload, "paired_ids":[item.utterance_id for item in translated]})
             await send({"type": "translation_complete", "english_conversation": english_payload})
             container.consultation_review.ready(workflow_id, actor)
-            if not session["auto_soap"]:
+            if not session["auto_soap"] or container.consultation_review.payload(workflow_id,actor)['medicine_report']['requires_review']:
                 audio_metadata = cleanup_audio_session(session,patient_ref=patient_id,note_ref=transcript_id)
                 container.consultation_review.store.change(workflow_id,lambda row:{**row,"audio_retention":audio_metadata})
                 await send({"type":"conversation_ready","conversation_review":container.consultation_review.payload(workflow_id,actor)})

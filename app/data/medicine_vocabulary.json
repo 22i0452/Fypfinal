@@ -1,0 +1,216 @@
+{
+  "version": 1,
+  "purpose": "Name preservation only. Not a prescribing, dosing, interactions or clinical correctness database. Urdu aliases are curated transliterations; matching is not proof of audio recognition.",
+  "entries": [
+    {
+      "id": "panadol",
+      "name": "Panadol",
+      "aliases": [
+        "Panadol",
+        "پیناڈول",
+        "پینادول",
+        "پینا ڈول",
+        "پناڈول"
+      ],
+      "status": "catalog_name",
+      "source_url": "https://www.haleon.pk/our-brands/panadol/"
+    },
+    {
+      "id": "panadol-extra",
+      "name": "Panadol Extra",
+      "aliases": [
+        "Panadol Extra",
+        "پیناڈول ایکسٹرا",
+        "پینادول ایکسٹرا",
+        "پینا ڈول ایکسٹرا"
+      ],
+      "status": "catalog_name",
+      "source_url": "https://www.haleon.pk/our-brands/panadol/"
+    },
+    {
+      "id": "panadol-extend",
+      "name": "Panadol Extend",
+      "aliases": [
+        "Panadol Extend",
+        "پیناڈول ایکسٹینڈ",
+        "پینادول ایکسٹینڈ"
+      ],
+      "status": "catalog_name",
+      "source_url": "https://www.haleon.pk/our-brands/panadol/"
+    },
+    {
+      "id": "motilium",
+      "name": "Motilium",
+      "aliases": [
+        "Motilium",
+        "موٹیلیم",
+        "موٹیلیئم",
+        "موٹیلئم",
+        "موٹیلیوم",
+        "موٹلیم"
+      ],
+      "status": "catalog_name",
+      "source_url": "https://www.nhs.uk/medicines/domperidone/about-domperidone/"
+    },
+    {
+      "id": "augmentin",
+      "name": "Augmentin",
+      "aliases": [
+        "Augmentin",
+        "آگمینٹن",
+        "اگمینٹن",
+        "آگمنٹن",
+        "اگمنٹن"
+      ],
+      "status": "catalog_name",
+      "source_url": "https://pk.gsk.com/en-pk/products/products-a-z/"
+    },
+    {
+      "id": "amoxil",
+      "name": "Amoxil",
+      "aliases": [
+        "Amoxil",
+        "اموکسل",
+        "ایموکسل",
+        "اموکسیل"
+      ],
+      "status": "catalog_name",
+      "source_url": "https://pk.gsk.com/en-pk/products/products-a-z/"
+    },
+    {
+      "id": "calpol",
+      "name": "Calpol",
+      "aliases": [
+        "Calpol",
+        "کالپول",
+        "کیلپول",
+        "کال پول"
+      ],
+      "status": "catalog_name",
+      "source_url": "https://pk.gsk.com/en-pk/products/products-a-z/"
+    },
+    {
+      "id": "ceporex",
+      "name": "Ceporex",
+      "aliases": [
+        "Ceporex",
+        "سیپوریکس",
+        "سیپو ریکس"
+      ],
+      "status": "catalog_name",
+      "source_url": "https://pk.gsk.com/en-pk/products/products-a-z/"
+    },
+    {
+      "id": "betnovate",
+      "name": "Betnovate",
+      "aliases": [
+        "Betnovate",
+        "بیٹنوویٹ"
+      ],
+      "status": "catalog_name",
+      "source_url": "https://pk.gsk.com/en-pk/products/products-a-z/"
+    },
+    {
+      "id": "ventolin",
+      "name": "Ventolin",
+      "aliases": [
+        "Ventolin",
+        "وینٹولین",
+        "ونٹولین"
+      ],
+      "status": "catalog_name",
+      "source_url": "https://pk.gsk.com/en-pk/products/products-a-z/"
+    },
+    {
+      "id": "seretide",
+      "name": "Seretide",
+      "aliases": [
+        "Seretide",
+        "سیریٹائڈ",
+        "سیریٹائیڈ"
+      ],
+      "status": "catalog_name",
+      "source_url": "https://pk.gsk.com/en-pk/products/products-a-z/"
+    },
+    {
+      "id": "zyrtec",
+      "name": "Zyrtec",
+      "aliases": [
+        "Zyrtec",
+        "زائرٹیک",
+        "زرٹیک"
+      ],
+      "status": "catalog_name",
+      "source_url": "https://pk.gsk.com/en-pk/products/products-a-z/"
+    },
+    {
+      "id": "zentel",
+      "name": "Zentel",
+      "aliases": [
+        "Zentel",
+        "زینٹل",
+        "زنٹل"
+      ],
+      "status": "catalog_name",
+      "source_url": "https://pk.gsk.com/en-pk/products/products-a-z/"
+    },
+    {
+      "id": "xyzal",
+      "name": "Xyzal",
+      "aliases": [
+        "Xyzal",
+        "زائزل",
+        "زائیزل"
+      ],
+      "status": "catalog_name",
+      "source_url": "https://pk.gsk.com/en-pk/products/products-a-z/"
+    },
+    {
+      "id": "paracetamol",
+      "name": "Paracetamol",
+      "aliases": [
+        "Paracetamol",
+        "پیراسیٹامول",
+        "پیراسٹامول",
+        "پیرا سیٹامول"
+      ],
+      "status": "catalog_name",
+      "source_url": "https://www.haleon.pk/our-brands/panadol/"
+    },
+    {
+      "id": "domperidone",
+      "name": "Domperidone",
+      "aliases": [
+        "Domperidone",
+        "ڈومپیریڈون",
+        "ڈومپریڈون"
+      ],
+      "status": "catalog_name",
+      "source_url": "https://www.nhs.uk/medicines/domperidone/about-domperidone/"
+    },
+    {
+      "id": "cetirizine",
+      "name": "Cetirizine",
+      "aliases": [
+        "Cetirizine",
+        "سیٹیریزین",
+        "سیٹریزین"
+      ],
+      "status": "catalog_name",
+      "source_url": "https://pk.gsk.com/en-pk/products/products-a-z/"
+    },
+    {
+      "id": "fixage-unconfirmed",
+      "name": "Fixage",
+      "aliases": [
+        "Fixage",
+        "فکسیج",
+        "فکسج",
+        "فکسیج"
+      ],
+      "status": "unconfirmed_name",
+      "source_url": null,
+      "note": "User-reported spelling. Preserve literal wording; clinician must confirm the spelling. Do not map to an ingredient or a different brand."
+    }
+  ]
+}

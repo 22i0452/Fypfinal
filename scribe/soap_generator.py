@@ -17,6 +17,7 @@ from security_guardrails import (
     has_ai_management_label,
     validate_soap_output,
 )
+from medflow.medicines import soap_issues
 
 
 _SOAP_SYSTEM_PROMPT = """\
@@ -596,6 +597,9 @@ class SOAPGenerator:
             last_candidate["generated_by"] = "AI Medical Scribe"
             try:
                 validated = validate_soap_output(last_candidate, normalized_transcript)
+                medicine_errors=soap_issues(transcript,validated)
+                if medicine_errors:
+                    raise SOAPValidationError(medicine_errors)
                 return _finalize_soap(
                     validated,
                     patient=patient,
@@ -614,6 +618,9 @@ class SOAPGenerator:
             visit_date=visit_date,
             transcript=normalized_transcript,
         )
+        if salvaged is not None:
+            if soap_issues(transcript,salvaged):
+                salvaged=None
         if salvaged is not None:
             return _finalize_soap(
                 salvaged,

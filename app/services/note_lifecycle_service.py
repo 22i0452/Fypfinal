@@ -10,6 +10,7 @@ from medflow.domain.models import ClinicalClaim, SOAPNote, SOAPNoteVersion, Stru
 from medflow.orchestration import ClinicWorkflowOrchestrator, WorkflowAction
 from medflow.repositories.protocols import NoteRepository, TranscriptRepository, WorkflowRepository
 from security_guardrails import Actor, AuthorizationError, require_authorized
+from medflow.medicines import report as medicine_report, soap_issues
 
 
 class NoteLifecycleError(RuntimeError):
@@ -171,6 +172,9 @@ class NoteLifecycleService:
         self._require(actor, "approve_note", note.patient_id)
         if note.state != NoteStatus.REVIEW_REQUIRED:
             raise NoteLifecycleError("INVALID_NOTE_STATE", "Only a review-required note can be approved")
+        transcript=self.transcripts.get(current.transcript_id) if current.transcript_id else None
+        if transcript and soap_issues(transcript.utterances,DocumentationService.legacy_soap(current.soap)):
+            raise NoteLifecycleError('MEDICINE_REVIEW_REQUIRED','Medicine wording or its stated dose differs from the conversation. Correct the SOAP section before approval.')
         unsupported = current.soap.unsupported_claims + [
             claim
             for section in (current.soap.subjective, current.soap.objective, current.soap.assessment, current.soap.plan)
@@ -219,6 +223,9 @@ class NoteLifecycleService:
     def payload(self, note: SOAPNote, version: SOAPNoteVersion, *, patient_name: str = "") -> dict[str, Any]:
         transcript = self.transcripts.get(version.transcript_id) if version.transcript_id else None
         legacy = DocumentationService.legacy_soap(version.soap)
+        medicines=medicine_report(transcript.utterances) if transcript else {'checks':[],'requires_review':False}
+        medicines['soap_issues']=soap_issues(transcript.utterances,legacy) if transcript else []
+        medicines['requires_review']=medicines['requires_review'] or bool(medicines['soap_issues'])
         from app.services.evidence_checks import note_evidence_report
         report = note_evidence_report(version.soap, transcript, state=version.status, version=version.version_number, note_id=note.note_id, approval={"doctor_id": note.approved_by_doctor_id, "approved_at": note.approved_at.isoformat() if note.approved_at else None} if version.status == NoteStatus.APPROVED_BY_DOCTOR else None)
         return {
@@ -243,6 +250,7 @@ class NoteLifecycleService:
                 "structured_soap": version.soap.model_dump(mode="json"),
                 "evidence": [item.model_dump(mode="json") for item in version.evidence],
                 "generated_by": "AI Medical Scribe",
+                "medicine_report":medicines,
                 "evidence_report": report,
             },
             "transcript": [DocumentationService.utterance_payload(item, translated=True) for item in transcript.utterances]

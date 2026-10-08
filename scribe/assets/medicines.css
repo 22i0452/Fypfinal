@@ -1,0 +1,9 @@
+.medicine-receipt{padding:14px 16px;margin:14px 0;border:1px solid var(--line);border-radius:14px;background:var(--surface-2,rgba(160,180,160,.06));font-size:13px;line-height:1.65}
+.medicine-receipt>div:first-child{display:flex;gap:9px;align-items:center;color:var(--ink)}
+.medicine-receipt svg{width:17px;height:17px;flex-shrink:0}.medicine-receipt small,.medicine-confirm p,.medicine-raw-source small{color:var(--ink-2)}
+.medicine-receipt.needs-review{border-color:var(--gold,#b8a47d);background:rgba(186,153,98,.07)}
+.medicine-names{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.medicine-names>span{border:1px solid var(--line);border-radius:7px;padding:3px 8px;color:var(--ink)}
+.medicine-receipt ul{margin:8px 0;padding-inline-start:20px}.medicine-confirm{min-width:0;border:1px solid var(--line);border-radius:12px;padding:16px;color:var(--ink)}
+.medicine-confirm legend{padding:0 6px}.medicine-confirm p{font-size:13px;line-height:1.65;margin:0 0 14px}.medicine-confirm>label{margin:10px 0}
+.medicine-confirm .medicine-attest{display:flex;flex-direction:row;align-items:flex-start;gap:10px;line-height:1.6}.medicine-attest input{width:18px;min-height:18px;margin-top:4px;flex-shrink:0;accent-color:var(--gold)}
+.medicine-review-summary,.medicine-raw-source{border-top:1px solid var(--line);padding-top:14px;width:100%;color:var(--ink-2);font-size:13px;line-height:1.8}.medicine-raw-source summary{cursor:pointer}.medicine-raw-source p{white-space:pre-wrap;overflow-wrap:anywhere;margin:12px 0;color:var(--ink)}

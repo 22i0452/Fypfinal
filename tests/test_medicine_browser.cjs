@@ -1,0 +1,63 @@
+/* Full real workflow with synthetic providers; not clinical or ASR accuracy evaluation. */
+const fs=require('node:fs/promises');
+const {chromium}=require(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES ? process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES+'/playwright' : 'playwright');
+let server,browser;
+const deadline=setTimeout(()=>{console.error('Browser validation timed out');process.exit(1);},120000);
+(async()=>{
+ const assert=require('node:assert/strict');
+ const path=require('node:path');
+ server=require('node:child_process').spawn('python',['tests/medicine_fixture.py'],{cwd:path.resolve(__dirname,'..'),stdio:['ignore','ignore','pipe']});server.stderr.on('data',d=>process.stderr.write(d));process.on('exit',()=>server.kill());
+ for(let i=0;i<100;i++){try{if((await fetch('http://127.0.0.1:8765/api/desk/health')).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
+ const shots=process.env.QA_SHOTS_DIR || '/tmp/medflow-evidence-qa';await fs.mkdir(shots,{recursive:true});
+ browser=await chromium.launch({executablePath:process.env.QA_CHROMIUM_PATH || undefined,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-zygote','--single-process','--disable-software-rasterizer'],headless:true});const ctx=await browser.newContext({viewport:{width:1440,height:900}});
+ const p=await ctx.newPage();const errors=[];p.on('pageerror',e=>errors.push(e.message));p.on('dialog',d=>d.accept());
+ await p.goto('http://127.0.0.1:8765/consultation/login');await p.waitForTimeout(300);await p.screenshot({path:shots+'/login.png',fullPage:true});
+ await p.locator('#loginEmail').fill('audit@example.test');await p.locator('#loginPassword').fill('AuditPass123!');await p.locator('#loginSubmit').click();
+ await p.waitForURL('**/workspace');await p.waitForFunction(()=>allPatients.length===2 && ws?.readyState===WebSocket.OPEN);
+ await p.waitForTimeout(300);await p.screenshot({path:shots+'/today.png',fullPage:true});
+ await p.locator('#dashboardPatientList .patient-row').first().click();await p.waitForFunction(()=>!visitLoading);
+ console.log('READ ONLY OPEN',await p.evaluate(()=>({workflow:activeWorkflow,encounter:activeEncounter,stage:visitStage})));
+ await p.waitForTimeout(300);await p.screenshot({path:shots+'/prepare.png',fullPage:true});
+ await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>activeWorkflow?.state==='PATIENT_UNVERIFIED');
+ await p.locator('#visitNextBtn').click();await p.getByRole('button',{name:'Use phone OTP instead',exact:true}).click();await p.locator('#verificationDialog').waitFor({state:'visible'});await p.locator('#patientOtpInput').fill('123456');await p.locator('#verificationDialog').getByRole('button',{name:'Verify patient',exact:true}).click();await p.waitForFunction(()=>activeWorkflow?.state==='BOOKING_REQUIRED');
+ await p.locator('#visitNextBtn').click();await p.locator('#bookingDialog').waitFor({state:'visible'});
+ console.log('BOOKING FIELDS',await p.locator('#bookingDoctor').innerText());
+ await p.getByRole('button',{name:'Find slots',exact:true}).click();await p.waitForFunction(()=>document.getElementById('bookingSlot').options.length>1);
+ await p.locator('#bookingSlot').selectOption({index:1});await p.getByRole('button',{name:'Confirm appointment',exact:true}).click();await p.waitForFunction(()=>activeWorkflow?.state==='BOOKING_CONFIRMED');
+ await p.locator('#visitNextBtn').click();await p.locator('#consentDialog').waitFor({state:'visible'});for(const id of ['consentRecording','consentTranscription','consentDocumentation'])await p.locator('#'+id).check();await p.getByRole('button',{name:'Save choices',exact:true}).click();await p.waitForFunction(()=>hasRequiredConsent());
+ await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>visitStage==='capture');await p.waitForTimeout(300);await p.screenshot({path:shots+'/capture.png',fullPage:true});
+
+
+ const checkLayout=async label=>{for(const width of [1440,1280,390]){await p.setViewportSize({width,height:900});assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth),width);await p.screenshot({path:shots+'/medicine-'+label+'-'+width+'.png',fullPage:true});}await p.setViewportSize({width:1440,height:900});};
+ await p.evaluate(()=>{window.qaAudio=new AudioContext();const oscillator=qaAudio.createOscillator(),destination=qaAudio.createMediaStreamDestination();oscillator.connect(destination);oscillator.start();navigator.mediaDevices.getUserMedia=async()=>destination.stream;});
+ await p.locator('#automaticSoapToggle').check();
+ await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>isRecording);await p.waitForTimeout(1800);await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>visitStage==='transcript' && !isProcessing);
+ assert.equal(await p.evaluate(()=>Boolean(soapLastSavedNoteId)),false);
+ assert.equal(await p.locator('.medicine-receipt.needs-review').count(),2);
+ assert.ok((await p.locator('#transcriptBody').innerText()).includes('پیناڈول'));
+ await checkLayout('review');
+ await p.locator('#visitNextBtn').click();await p.locator('[data-turn-english]').fill('Take Panadol.');await p.locator('[data-medicines-reviewed]').check();await p.locator('[data-turn-done]').click();
+ await p.locator('[data-edit-conversation="U2"]').click();await p.locator('[data-turn-english]').fill('Take Fixage medicine.');await p.locator('[data-medicine-spelling]').fill('Fixage');await p.locator('[data-medicines-reviewed]').check();await checkLayout('editor');await p.locator('[data-turn-done]').click();
+ await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>conversationReview?.revision===2 && !visitActionBusy && !conversationDirty);
+ assert.equal(await p.evaluate(()=>conversationReview.medicine_report.requires_review),false);
+ assert.equal(await p.locator('.medicine-receipt.needs-review').count(),0);
+ await p.reload();await p.waitForFunction(()=>visitStage==='transcript' && conversationReview?.revision===2 && !visitLoading);
+ assert.equal(await p.evaluate(()=>conversationReview.utterances[1].medicine_review.spellings['فکسج']),'Fixage');
+ await p.locator('.medicine-raw-source summary').click();assert.ok((await p.locator('.medicine-raw-source').innerText()).includes('پیناڈول'));
+ await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>visitStage==='review' && !!soapLastSavedNoteId && !visitActionBusy);
+ assert.ok((await p.locator('#soapContent').innerText()).includes('Panadol'));assert.ok((await p.locator('#soapContent').innerText()).includes('Fixage'));
+ await checkLayout('soap');
+ const plan=p.locator('.soap-section').filter({has:p.locator('#soapText_plan')});
+ await p.evaluate(()=>startSoapSectionEdit('plan'));await p.locator('#soapEditor_plan').fill('Take painkillers. Take Fixage medicine.');await p.evaluate(()=>saveSoapSectionEdit('plan'));
+ await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>!soapSaveBusy && !soapDraftTouched && currentNoteVersion===2);
+ assert.ok((await p.locator('.medicine-receipt.needs-review').innerText()).includes('Name missing from SOAP: Panadol'));
+ await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>generatedNoteState==='REVIEW_REQUIRED' && !visitActionBusy);
+ assert.equal(await p.locator('#visitNextBtn').isDisabled(),true);
+ await p.evaluate(()=>startSoapSectionEdit('plan'));await p.locator('#soapEditor_plan').fill('Take Panadol. Take Fixage medicine.');await p.evaluate(()=>saveSoapSectionEdit('plan'));
+ await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>!soapSaveBusy && !soapDraftTouched && currentNoteVersion===4);
+ await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>generatedNoteState==='REVIEW_REQUIRED' && !visitActionBusy);
+ assert.equal(await p.locator('#visitNextBtn').isDisabled(),false);
+ await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>generatedNoteState==='APPROVED_BY_DOCTOR' && !visitActionBusy);
+ assert.deepEqual(errors,[]);console.log('MEDICINES: automatic SOAP paused, both source names preserved, doctor spelling review saved/reloaded, source ASR available, SOAP identity checks and corrected approval passed at three widths; page errors 0');
+ await browser.close();server.kill();clearTimeout(deadline);
+})().catch(async e=>{console.error(e);clearTimeout(deadline);await browser?.close();server?.kill();process.exitCode=1});

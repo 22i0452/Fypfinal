@@ -9,6 +9,7 @@ from medflow.orchestration import WorkflowAction
 from security_guardrails import require_authorized
 from security_guardrails.telemetry import collect_provider_events
 from app.services.evidence_checks import note_evidence_report
+from medflow.medicines import report as medicine_report, clinician_review, check_turn
 
 
 class ConsultationReviewError(RuntimeError):
@@ -63,7 +64,9 @@ class ConsultationReviewService:
         if not transcript or transcript.patient_id != workflow.patient_id or transcript.encounter_id != workflow.encounter_id:
             raise ConsultationReviewError('PATIENT_MISMATCH', 'Transcript belongs to a different visit.')
         return {key: value.get(key) for key in ('status', 'revision', 'transcript_id', 'run_id', 'template_id', 'auto_soap', 'last_error', 'note_id', 'updated_at', 'reviewed_by', 'reviewed_at', 'audio_retention')} | {
-            'utterances': [self.c.documentation_service.utterance_payload(item, translated=True) for item in transcript.utterances]}
+            'utterances': [self.c.documentation_service.utterance_payload(item, translated=True) for item in transcript.utterances],
+            'medicine_report':medicine_report(transcript.utterances),
+            'raw_asr_text':transcript.raw_asr_text}
 
     def prepare(self, workflow_id, transcript, run_id, template_id, auto_soap):
         return self.store.change(workflow_id, lambda old: {
@@ -139,12 +142,30 @@ class ConsultationReviewService:
             def translate_corrected():
                 translated = self.c.documentation_service.translate(turns, patient=patient)
                 # Store and inspect the final clinician wording, including explicit English edits.
-                return [item.model_copy(update={'clinical_english': changes[item.utterance_id]['clinical_english']}) if 'clinical_english' in changes.get(item.utterance_id, {}) else item for item in translated]
+                previous={item.utterance_id:item for item in source.utterances}
+                result=[]
+                for item in translated:
+                    correction=changes.get(item.utterance_id,{})
+                    old=previous[item.utterance_id]
+                    if not correction:
+                        result.append(old.model_copy(update={'transcript_id':new_transcript_id}))
+                        continue
+                    english=correction.get('clinical_english',item.clinical_english)
+                    review=old.medicine_review if english==old.clinical_english and item.original_text==old.original_text else None
+                    if correction.get('medicines_reviewed'):
+                        try:
+                            review=clinician_review(item.original_text,english,correction.get('medicine_spellings',{}),actor.ref)
+                        except ValueError as exc:
+                            raise ConsultationReviewError('INVALID_MEDICINE_REVIEW',str(exc)) from exc
+                    result.append(item.model_copy(update={'clinical_english':english,'medicine_review':review,
+                        'medicine_checks':check_turn(item.original_text,english,review)}))
+                return result
             translated = self._trace_call(claimed, 'translation', translate_corrected, lambda result: {'utterances': [self.c.documentation_service.utterance_payload(item, translated=True) for item in result], 'revision': revision+1, 'clinician_corrected_turns': list(changes)})
             latest = self.context(workflow_id, actor)
             if latest.state != WorkflowState.TRANSCRIPT_REVIEW or latest.note_id:
                 raise ConsultationReviewError('VERSION_CONFLICT', 'The visit changed during correction.')
-            self.c.documentation_service.save_transcript(transcript_id=new_transcript_id, patient_id=workflow.patient_id, encounter_id=workflow.encounter_id, utterances=translated)
+            self.c.documentation_service.save_transcript(transcript_id=new_transcript_id, patient_id=workflow.patient_id, encounter_id=workflow.encounter_id, utterances=translated,
+                raw_asr_text=source.raw_asr_text,source_transcript_id=source.source_transcript_id or source.transcript_id)
             self._finish(workflow_id, claimed, status='TRANSCRIPT_REVIEW', revision=revision+1, transcript_id=new_transcript_id)
             self.c.audit_service.record('transcript_review_saved', actor_ref=actor.ref, action='create_note_draft', patient_ref=workflow.patient_id, resource_ref=new_transcript_id, metadata={'revision':revision+1,'changed_turns':len(changes)})
         except Exception as exc:
@@ -165,6 +186,8 @@ class ConsultationReviewService:
             transcript = self.c.transcript_repository.get(transcript_id)
             if not transcript or transcript.patient_id != workflow.patient_id or transcript.encounter_id != workflow.encounter_id:
                 raise ConsultationReviewError('PATIENT_MISMATCH', 'Transcript belongs to a different visit.')
+            if medicine_report(transcript.utterances)['requires_review']:
+                raise ConsultationReviewError('MEDICINE_REVIEW_REQUIRED','Review the flagged medicine turns and correct their English wording before generating SOAP.')
             # Revalidate current recording/AI consent before reusing stored clinical text.
             decisions = self.c.consent_service.latest_decisions(workflow.encounter_id, actor=actor)
             for key in ('AI_TRANSCRIPTION', 'AI_DOCUMENTATION'):
@@ -186,7 +209,8 @@ class ConsultationReviewService:
                 return self._finish(workflow_id, claimed, status='SOAP_READY', note_id=latest.note_id)
             if latest.state == WorkflowState.DOCUMENTATION_PROCESSING:
                 self.c.workflow_orchestrator.perform_action(workflow_id, WorkflowAction.RETURN_TO_TRANSCRIPT, actor=actor, expected_version=latest.version)
-            self._finish(workflow_id, claimed, status='SOAP_FAILED', last_error='SOAP generation was interrupted. The saved transcript is ready to retry.')
+            medicine_block=getattr(exc,'code','')=='MEDICINE_REVIEW_REQUIRED'
+            self._finish(workflow_id, claimed, status='TRANSCRIPT_REVIEW' if medicine_block else 'SOAP_FAILED', last_error=str(exc) if medicine_block else 'SOAP generation was interrupted. The saved transcript is ready to retry.')
             if isinstance(exc, ConsultationReviewError):
                 raise
             raise ConsultationReviewError('SOAP_FAILED', 'SOAP generation failed. Retry from the saved transcript; no new recording is needed.') from exc
