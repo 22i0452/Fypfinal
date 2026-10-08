@@ -142,3 +142,12 @@ QA_CHROMIUM_PATH=/path/to/chromium node tests/test_product_browser.cjs
 ```
 
 Browser scripts share localhost:8765 and must run sequentially. The test pack establishes application behaviour under authored inputs and controlled provider outputs. Live checks were validated with mock responses only in development QA; actual provider output/speed, microphone speech quality and clinical correctness remain unmeasured. The report displays that distinction and never fabricates accuracy/confidence.
+# Optional presentation and website display — 8 October 2026
+
+- 29 process-observability, guided-consultation, coding and clinic API regressions passed.
+- 22 voice-engine/evidence UI Node tests passed.
+- New Chromium presentation journey passed: saved SOAP/code/manual handoff results; source highlights; full 13-second playback; pause, skip, replay, expansion and reduced motion; unchanged note JSON and provider-call counts; zero page errors.
+- Global dark/light preferences and 80/100/130/160% page zoom passed across home, sign-in, receptionist, doctor and testing at 1440/1280/390 widths. Playback stayed within viewport bounds at increased zoom.
+- Existing product browser journey passed: booking, consent, capture, SOAP editing/version history, coding evidence/review, visit approval/completion and navigation; zero page errors.
+- Existing hands-free browser journey passed with the new returned-receipt playback assertion: short Urdu answers, real application booking/doctor handoff with fictional providers, manual switching, pause/interruption, error recovery, stale-response rejection and microphone permission recovery; zero page errors.
+- Real paid providers, physical audio and classroom projector hardware were not exercised. Default appearance/workflow remains dark/100% with presentation invoked only on request.
