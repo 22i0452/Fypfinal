@@ -9,6 +9,13 @@ When Python package installation fails because the base Nix Python is immutable 
 
 **How to apply:** check the active Python before installing dependencies; if it is the immutable base runtime, use an available managed Python module first.
 
+## Replit package installer side effects
+After `installLanguagePackages`, inspect the dependency file before keeping its changes. The installer can append requested packages even when equivalent, constrained entries already exist, creating duplicate requirements.
+
+**Why:** a package install added duplicate Python dependency lines to an existing requirements file; removing those duplicates kept the declared version bounds intact.
+
+**How to apply:** preserve the project's existing constraints, remove only duplicate additions, and leave the installed runtime package available for the active workflow.
+
 ## Isolated Python subprocesses
 When launching Python child processes with a scrubbed environment, preserve the parent interpreter's import paths in the child's `PYTHONPATH` without forwarding the rest of the environment. Do not restrict paths to directories named `site-packages` or `dist-packages`.
 

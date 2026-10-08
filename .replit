@@ -36,7 +36,7 @@ expertMode = true
 
 [nix]
 channel = "stable-25_05"
-packages = ["freetype", "lcms2", "libimagequant", "libjpeg", "libsndfile", "libtiff", "libwebp", "libxcrypt", "openjpeg", "portaudio", "tcl", "tk", "zlib"]
+packages = ["freetype", "lcms2", "libimagequant", "libjpeg", "libsndfile", "libtiff", "libwebp", "libxcrypt", "openjpeg", "portaudio", "postgresql", "tcl", "tk", "zlib"]
 
 [userenv]
 

@@ -1,4 +1,4 @@
-- [Python dependency installs](python-runtime.md) — use a managed Python runtime when the base Nix Python lacks pip or rejects package writes.
+- [Python dependency installs](python-runtime.md) — use managed Python and review installer changes to requirements.txt.
 - [Preview route precedence](artifact-routing.md) — specific artifact paths such as `/api` can shadow a root web service and route requests to the wrong backend.
 - [Git data safety](git-data-safety.md) — never inspect clinic records or publish database/media contents; check outgoing commits before any push.
 - [Workflow callback argument shape](workflow-callbacks.md) — `removeWorkflow` expects a `{name}` object in CodeExecution despite the skill's string example.
