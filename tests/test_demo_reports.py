@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from app.main import create_app
+from app.testing.catalog import catalog
 from app.services.demo_report_service import DemoReportError, runner_diagnostics
 from tests.test_central_app_auth import _settings
 
@@ -42,7 +43,7 @@ class DemoReportTests(unittest.TestCase):
             if report['status']!='RUNNING':break
             time.sleep(.05)
         self.assertEqual(report['status'],'PASSED',json.dumps(report['cases']))
-        self.assertEqual(report['totals']['passed'],20)
+        self.assertEqual(report['totals']['passed'],len(catalog()))
         self.assertGreater(report['duration_ms'],0)
         for case in report['cases']:
             self.assertTrue(case['checks']);self.assertGreaterEqual(case['duration_ms'],0)
@@ -75,7 +76,7 @@ class DemoReportTests(unittest.TestCase):
         self.s.settings=replace(self.s.settings,demo_live_text_enabled=True,openrouter_api_key='synthetic-provider-key')
         self.assertTrue(self.s.capabilities()['live_text_enabled'])
         with self.assertRaises(DemoReportError):self.paused('live_text',False)
-        report=self.paused('live_text',True);self.assertEqual(len(report['cases']),3)
+        report=self.paused('live_text',True);self.assertEqual(len(report['cases']),len(catalog('live_text')))
     def test_database_lease_prevents_a_second_run(self):
         first=self.paused()
         with self.assertRaises(DemoReportError) as raised:self.paused()
@@ -88,7 +89,7 @@ class DemoReportTests(unittest.TestCase):
         result={'type':'case_finished','id':'short-age','status':'FAILED','checks':[{'label':'Age','expected':'23','actual':'22','status':'FAILED'}],'steps':[],'duration_ms':2,'error':None}
         self.s._event(rid,owner,result)
         cancelled=self.s.cancel(rid,owner);self.assertEqual(cancelled['status'],'CANCELLED')
-        self.assertEqual(cancelled['totals']['failed'],1);self.assertEqual(cancelled['totals']['skipped'],19)
+        self.assertEqual(cancelled['totals']['failed'],1);self.assertEqual(cancelled['totals']['skipped'],len(catalog())-1)
         self.s._event(rid,owner,{'type':'case_started','id':'short-phone'})
         self.assertEqual(self.s.get(rid,owner),cancelled)
     def test_unmeasured_success_is_rejected_and_failures_are_retained(self):
@@ -100,14 +101,14 @@ class DemoReportTests(unittest.TestCase):
         self.assertEqual(self.s.get(rid,owner)['totals']['failed'],1)
     def test_restart_marks_unfinished_run_interrupted(self):
         report=self.paused();self.s.recover_interrupted();loaded=self.s.get(report['run_id'],self.user.user_id)
-        self.assertEqual(loaded['status'],'INTERRUPTED');self.assertEqual(loaded['totals']['skipped'],20)
+        self.assertEqual(loaded['status'],'INTERRUPTED');self.assertEqual(loaded['totals']['skipped'],len(catalog()))
         self.assertIn('restarted',loaded['message'])
     def test_launch_failure_is_error_and_never_passes(self):
         with patch('app.services.demo_report_service.subprocess.Popen',side_effect=OSError('synthetic-start-error')):
             report=self.s.start(self.user.user_id,'synthetic')
             for thread in list(self.s._threads):thread.join(5)
         result=self.s.get(report['run_id'],self.user.user_id)
-        self.assertEqual(result['status'],'ERROR');self.assertEqual(result['totals']['passed'],0);self.assertEqual(result['totals']['skipped'],20)
+        self.assertEqual(result['status'],'ERROR');self.assertEqual(result['totals']['passed'],0);self.assertEqual(result['totals']['skipped'],len(catalog()))
     def test_time_limit_marks_unfinished_scenarios_unevaluated(self):
         import io
         class Process:
@@ -125,7 +126,7 @@ class DemoReportTests(unittest.TestCase):
             report=self.s.start(self.user.user_id,'synthetic')
             for thread in list(self.s._threads):thread.join(5)
         loaded=self.s.get(report['run_id'],self.user.user_id)
-        self.assertEqual(loaded['status'],'ERROR');self.assertEqual(loaded['totals']['skipped'],20)
+        self.assertEqual(loaded['status'],'ERROR');self.assertEqual(loaded['totals']['skipped'],len(catalog()))
         self.assertIn('time limit',loaded['message']);self.assertTrue(process.killed)
     def test_synthetic_environment_excludes_secrets_and_live_paths(self):
         with patch.dict(os.environ,{'OPENROUTER_API_KEY':'do-not-forward','MEDFLOW_DATABASE_PATH':'working-clinic.db','MEDFLOW_RECEPTIONIST_SERVICE_TOKEN':'do-not-forward'}):
@@ -155,7 +156,7 @@ class DemoReportTests(unittest.TestCase):
         result=self.s.get(report['run_id'],self.user.user_id)
         self.assertEqual(result['status'],'ERROR')
         self.assertEqual(result['totals']['passed'],0)
-        self.assertEqual(result['totals']['skipped'],20)
+        self.assertEqual(result['totals']['skipped'],len(catalog()))
         self.assertEqual(result['runner_diagnostics']['missing_module'],'httpx')
         self.assertIn('requirements.txt',result['message'])
         self.assertNotIn('secret-provider-value',json.dumps(result))

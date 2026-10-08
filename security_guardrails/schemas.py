@@ -260,6 +260,12 @@ def validate_soap_output(soap: dict[str, Any], transcript: list[dict[str, Any]] 
         raise SOAPValidationError(issues) from exc
 
     transcript_text = _transcript_text(transcript)
+    if isinstance(transcript, list):
+        known = {str(turn.get('utterance_id')) for turn in transcript if turn.get('utterance_id')}
+        cited = {ref.utterance_id for ref in parsed.evidence}
+        cited.update(ref for rows in parsed.claim_sources.values() for claim in rows for ref in claim.evidence_ids)
+        if cited - known:
+            issues.append('unknown_source_reference')
     unsupported: list[str] = []
 
     objective = parsed.objective.lower()

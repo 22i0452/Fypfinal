@@ -1,55 +1,68 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Medflow — Demo testing</title><link rel="icon" href="/branding/icon">
-  <link rel="stylesheet" href="/assets/home.css?v=20261008-testing"><link rel="stylesheet" href="/assets/testing.css?v=20261008-testing">
-  <script defer src="/assets/vendor/lucide.min.js"></script><script defer src="/assets/testing.js?v=20261008-testing"></script>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Medflow — Evaluation Studio</title><link rel="icon" href="/branding/icon">
+<link rel="stylesheet" href="/assets/home.css?v=20261008-evaluation">
+<script defer src="/assets/vendor/lucide.min.js"></script><script defer src="/assets/testing.js?v=20261008-evaluation"></script>
 <link rel="stylesheet" href="/assets/display.css?v=20261008-present"><script src="/assets/display.js?v=20261008-present"></script>
+<link rel="stylesheet" href="/assets/testing.css?v=20261008-evaluation">
 </head>
-<body>
-  <a class="skip-link" href="#scenarioList">Inspect scenarios</a>
-  <header class="home-header testing-header">
-    <a class="home-brand" href="/" aria-label="Medflow home"><span class="brand-symbol"><i data-lucide="audio-lines" aria-hidden="true"></i></span><span>medflow<small>DEMO TESTING</small></span></a>
-    <a class="home-account" href="/workspace"><i data-lucide="stethoscope" aria-hidden="true"></i><span>Doctor workspace</span><i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
-  </header>
-  <main class="testing-main">
-    <section class="testing-intro">
-      <div><p class="home-eyebrow">A RECORD OF WHAT WORKED.</p><h1>Proof, <em>in view.</em></h1><p class="testing-lede">Repeat the journey. Inspect the outcome.<br>Every result has an expected answer and a measured check.</p></div>
-      <div class="testing-scope"><i data-lucide="flask-conical" aria-hidden="true"></i><span>Fictional scenarios<small>Separate process. Isolated clinic.</small></span></div>
-    </section>
-    <section class="testing-controls" aria-label="Run controls">
-      <label class="test-mode-label"><span>Test mode</span><select id="testMode"><option value="synthetic">Synthetic workflow</option><option value="live_text" disabled>Live text · setup required</option></select></label>
-      <div class="test-mode-note" id="testModeNote">No dataset or API credits required.</div>
-      <button class="test-button primary" id="runTests" disabled><i data-lucide="play" aria-hidden="true"></i><span>Run checks</span></button>
-      <button class="test-button" id="retryTests" hidden><i data-lucide="refresh-cw" aria-hidden="true"></i><span>Retry connection</span></button>
-      <button class="test-button" id="stopTests" hidden><i data-lucide="square" aria-hidden="true"></i><span>Stop run</span></button>
-    </section>
-    <label class="live-test-consent" id="liveTestConsent" hidden><input id="confirmLive" type="checkbox"><span>Use the existing OpenRouter key for three fictional text checks. Real provider requests may use credits; no microphone or real patient data is sent.</span></label>
-    <div class="test-message" id="testMessage" role="status" aria-live="polite"></div>
-    <section class="test-stats" aria-label="Run totals">
-      <article><i data-lucide="check-check" aria-hidden="true"></i><span>Passed</span><strong id="testPassed">—</strong></article>
-      <article><i data-lucide="circle-alert" aria-hidden="true"></i><span>Failed / errors</span><strong id="testFailed">—</strong></article>
-      <article><i data-lucide="circle-minus" aria-hidden="true"></i><span>Not evaluated</span><strong id="testSkipped">—</strong></article>
-      <article><i data-lucide="timer" aria-hidden="true"></i><span>Measured time</span><strong id="testElapsed">—</strong></article>
-    </section>
-    <section class="test-run-receipt" aria-label="Run receipt">
-      <span id="testRunStatus" class="test-status">Not run</span><span id="testRunScope">Synthetic timings are not real provider speed.</span>
-      <div class="test-progress" role="progressbar" id="testProgress" aria-label="Scenarios completed" aria-valuemin="0" aria-valuemax="16" aria-valuenow="0"><span></span></div>
-      <span id="testProgressLabel">Ready to run</span>
-    </section>
-    <section class="test-toolbar" aria-label="Report filters">
-      <label><span>Saved runs</span><select id="testHistory"><option value="">New run</option></select></label>
-      <label><span>Show</span><select id="testFilter"><option value="all">All scenarios</option><option value="attention">Failures / errors</option><option value="passed">Passed</option><option value="unevaluated">Not evaluated</option></select></label>
-      <button class="test-button" id="exportTests" disabled><i data-lucide="download" aria-hidden="true"></i><span>Export JSON</span></button>
-      <button class="test-button" id="exportTestsPdf" disabled><i data-lucide="file-down" aria-hidden="true"></i><span>Report PDF</span></button>
-    </section>
-    <section class="test-workbench">
-      <div class="test-scenarios"><div class="test-section-heading"><h2>The scenario pack</h2><span id="testPackVersion">Loading…</span></div><div id="scenarioList" aria-label="Test scenarios"></div></div>
-      <article class="test-detail" id="testDetail" aria-label="Scenario inspection"><div class="test-empty"><i data-lucide="scan-line" aria-hidden="true"></i><h2>Inspect the evidence.</h2><p>Choose a scenario to see its input, expected outcome and actual checks.</p></div></article>
-    </section>
-    <details class="test-methodology"><summary><i data-lucide="book-open" aria-hidden="true"></i>What this report establishes</summary><p>Synthetic runs use authored inputs and controlled provider responses against the real booking, persistence, revision and authorization logic. The report records application checks, not clinical accuracy. Live text checks use the real provider and a small factual checklist, without speech input.</p><div id="testUnassessed"></div><p>Stopped, interrupted and unexecuted scenarios remain labelled. No results are generated until a run actually executes. Reports belong to your signed-in account; the most recent 50 are retained.</p></details>
-  </main>
-  <footer class="home-footer"><a href="/">Back to Medflow</a><span>Traceable results. Clear limits.</span></footer>
+<body class="evaluation-body">
+<a class="skip-link" href="#evaluationTabs">Open evaluation tabs</a>
+<header class="home-header testing-header">
+<a class="home-brand" href="/" aria-label="Medflow home"><span class="brand-symbol"><i data-lucide="audio-lines" aria-hidden="true"></i></span><span>medflow<small>EVALUATION STUDIO</small></span></a>
+<a class="home-account" href="/workspace"><i data-lucide="stethoscope" aria-hidden="true"></i><span>Workspace</span><i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
+</header>
+<main class="testing-main">
+<div class="studio-title"><div><p class="home-eyebrow">MEASURED. INSPECTABLE. REPEATABLE.</p><h1>Proof, <em>in view.</em></h1></div><span id="testRunStatus" class="test-status">Not run</span></div>
+<section class="testing-controls" aria-label="Run controls">
+<label><span class="sr-only">Test mode</span><select id="testMode"><option value="synthetic">Workflow checks</option><option value="live_text" disabled>Live text · setup required</option><option value="audio" disabled>Recorded audio · setup required</option></select></label>
+<label class="history-control"><span class="sr-only">Saved runs</span><select id="testHistory"><option value="">New run</option></select></label>
+<button class="test-button primary" id="runTests" disabled><i data-lucide="play" aria-hidden="true"></i><span>Run checks</span></button>
+<button class="test-button" id="stopTests" hidden><i data-lucide="square" aria-hidden="true"></i><span>Stop</span></button>
+<button class="test-button" id="retryTests" hidden><i data-lucide="refresh-cw" aria-hidden="true"></i><span>Reconnect</span></button>
+<button class="test-button icon-button" id="toggleRunSettings" aria-expanded="false" aria-controls="runSettings" aria-label="Run settings"><i data-lucide="sliders-horizontal" aria-hidden="true"></i></button>
+<button class="test-button icon-button" id="exportTestsPdf" disabled aria-label="Download panel report PDF" title="Panel report PDF"><i data-lucide="file-down" aria-hidden="true"></i></button>
+<button class="test-button icon-button" id="exportTests" disabled aria-label="Download complete JSON evidence" title="Complete JSON evidence"><i data-lucide="braces" aria-hidden="true"></i></button>
+</section>
+<div class="run-settings" id="runSettings" hidden><label>Repeat pack <select id="testRepetitions"><option value="1">Once</option><option value="2">Twice</option><option value="3">Three times</option></select></label><span id="testModeNote">No dataset or API credits required.</span><label class="live-test-consent" id="liveTestConsent" hidden><input id="confirmLive" type="checkbox"><span>Use the existing OpenRouter key with fictional text or selected recordings. Up to 80 HTTP requests per run, 20 per case; retries count. Provider credits may be used.</span></label></div>
+<div class="test-run-receipt"><div class="test-progress" role="progressbar" id="testProgress" aria-label="Scenarios resolved" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0"><span></span></div><span id="testProgressLabel">Ready to run</span><span id="testPackVersion">Loading…</span></div>
+<div class="test-message" id="testMessage" role="status" aria-live="polite"></div>
+<nav class="studio-tabs" id="evaluationTabs" role="tablist" aria-label="Evaluation views">
+<button id="tab-overview" role="tab" aria-controls="panel-overview" aria-selected="true" tabindex="0" data-tab="overview"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i><span>Overview</span></button>
+<button id="tab-cases" role="tab" aria-controls="panel-cases" aria-selected="false" tabindex="-1" data-tab="cases"><i data-lucide="list-checks" aria-hidden="true"></i><span>Cases</span></button>
+<button id="tab-replay" role="tab" aria-controls="panel-replay" aria-selected="false" tabindex="-1" data-tab="replay"><i data-lucide="workflow" aria-hidden="true"></i><span>Replay</span></button>
+<button id="tab-audio" role="tab" aria-controls="panel-audio" aria-selected="false" tabindex="-1" data-tab="audio"><i data-lucide="audio-lines" aria-hidden="true"></i><span>Audio</span></button>
+<button id="tab-method" role="tab" aria-controls="panel-method" aria-selected="false" tabindex="-1" data-tab="method"><i data-lucide="shield-check" aria-hidden="true"></i><span>Method</span></button>
+</nav>
+<section id="panel-overview" class="studio-panel" role="tabpanel" aria-labelledby="tab-overview">
+<div class="subtabs" role="tablist" aria-label="Overview sections" data-group="overview"><button id="overview-results-tab" role="tab" aria-selected="true" aria-controls="overview-results" data-subtab="results">Results</button><button id="overview-compare-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="overview-compare" data-subtab="compare">Compare</button><button id="overview-coverage-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="overview-coverage" data-subtab="coverage">Coverage</button></div>
+<div id="overview-results" class="subpanel pane-scroll" role="tabpanel" aria-labelledby="overview-results-tab"><div id="overviewResults"></div></div>
+<div id="overview-compare" class="subpanel pane-scroll" role="tabpanel" aria-labelledby="overview-compare-tab" hidden><div class="panel-heading"><h2>Before &amp; after.</h2><span class="detail-scope">Same references. Same configuration.</span></div><div class="compare-controls"><label>Baseline <select id="compareBaseline"><option value="">Choose a saved run</option></select></label><label>Current <select id="compareCurrent"><option value="">Choose a saved run</option></select></label><button id="compareRuns" class="test-button">Compare</button><button id="exportComparison" class="test-button icon-button" disabled aria-label="Download comparison PDF"><i data-lucide="file-down" aria-hidden="true"></i></button></div><div id="comparisonResult" class="test-empty"><i data-lucide="git-compare-arrows" aria-hidden="true"></i><h2>An honest comparison.</h2><p>Choose two completed runs. Older packs, incomplete runs and changed provider settings cannot produce an improvement percentage.</p></div></div>
+<div id="overview-coverage" class="subpanel pane-scroll" role="tabpanel" aria-labelledby="overview-coverage-tab" hidden><div id="coverageResults"></div></div>
+</section>
+<section id="panel-cases" class="studio-panel" role="tabpanel" aria-labelledby="tab-cases" hidden>
+<div class="case-tools"><label><span class="sr-only">Outcome filter</span><select id="testFilter"><option value="all">All outcomes</option><option value="attention">Failures / errors</option><option value="passed">Passed</option><option value="unevaluated">Not evaluated</option></select></label><label><span class="sr-only">Category filter</span><select id="categoryFilter"><option value="all">All categories</option></select></label><span id="caseCount" class="detail-scope"></span></div>
+<div class="test-workbench" id="caseWorkbench"><div class="test-scenarios pane-scroll"><div id="scenarioList" aria-label="Test scenarios"></div></div><article class="test-detail pane-scroll" id="testDetail" aria-label="Scenario inspection"></article></div>
+</section>
+<section id="panel-replay" class="studio-panel pane-scroll" role="tabpanel" aria-labelledby="tab-replay" hidden>
+<div class="replay-controls"><label><span class="sr-only">Replay case</span><select id="replayCase"><option value="">Choose a completed case</option></select></label><button id="replayPlay" class="test-button primary" disabled><i data-lucide="play" aria-hidden="true"></i><span>Play saved steps</span></button><button id="replayReset" class="test-button icon-button" aria-label="Reset replay"><i data-lucide="rotate-ccw" aria-hidden="true"></i></button><label><span class="sr-only">Presentation pace</span><select id="replayPace"><option value="2000">Presentation · 2s / step</option><option value="800">Quick · 0.8s / step</option><option value="4000">Slow · 4s / step</option></select></label></div>
+<p class="replay-disclosure"><i data-lucide="history" aria-hidden="true"></i>Replay of saved results · visual pacing only · no model calls.</p>
+<div id="replayStage"></div>
+</section>
+<section id="panel-audio" class="studio-panel" role="tabpanel" aria-labelledby="tab-audio" hidden>
+<div class="subtabs" role="tablist" aria-label="Audio sections" data-group="audio"><button id="audio-library-tab" role="tab" aria-selected="true" aria-controls="audio-library" data-subtab="library">Library</button><button id="audio-add-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="audio-add" data-subtab="add">Add recording</button><button id="audio-scripts-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="audio-scripts" data-subtab="scripts">Scripts</button></div>
+<div id="audio-library" class="subpanel pane-scroll" role="tabpanel" aria-labelledby="audio-library-tab"><div class="panel-heading"><h2>Your reference recordings.</h2><span id="audioSelectedCount" class="detail-scope">0 / 6 selected</span></div><p class="detail-scope">Choose up to six clips from the same split. Recordings and references persist with your account. Results appear only after a real provider run.</p><div id="audioLibrary"></div></div>
+<div id="audio-add" class="subpanel pane-scroll" role="tabpanel" aria-labelledby="audio-add-tab" hidden><form id="audioUpload" class="audio-form"><h2>One recording. One checked reference.</h2><label>Fictional script <select id="uploadScript" name="script_id" required></select></label><div id="uploadReference" class="script-reference" dir="auto"></div><label>Recording <input id="audioFile" name="file" type="file" accept="audio/wav,.wav" required></label><p class="detail-scope">Mono, 16-bit PCM WAV · 1–90 seconds · under 3 MB. No real patient data. Uploaded audio will be sent to OpenRouter only when you start an acknowledged audio run.</p><label class="attestation"><input type="checkbox" name="attested" required><span>I listened to this recording. It uses fictional data and exactly matches the script, including medicine names, dose and stop/avoid instructions.</span></label><button class="test-button primary" id="uploadAudio" type="submit"><i data-lucide="upload" aria-hidden="true"></i><span>Save recording</span></button><p id="uploadMessage" role="status" class="test-message"></p></form></div>
+<div id="audio-scripts" class="subpanel pane-scroll" role="tabpanel" aria-labelledby="audio-scripts-tab" hidden><div class="panel-heading"><h2>A small, fixed reference pack.</h2><span class="detail-scope">10 development · 2 held-out</span></div><label class="script-picker">Script <select id="scriptPicker"></select></label><div id="scriptDetail"></div></div>
+</section>
+<section id="panel-method" class="studio-panel" role="tabpanel" aria-labelledby="tab-method" hidden>
+<div class="subtabs" role="tablist" aria-label="Method sections" data-group="method"><button id="method-scoring-tab" role="tab" aria-selected="true" aria-controls="method-scoring" data-subtab="scoring">Scoring</button><button id="method-guardrails-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="method-guardrails" data-subtab="guardrails">Guardrails</button><button id="method-limits-tab" role="tab" aria-selected="false" tabindex="-1" aria-controls="method-limits" data-subtab="limits">Limits</button></div>
+<div id="method-scoring" class="subpanel pane-scroll" role="tabpanel" aria-labelledby="method-scoring-tab"><h2>Counts before claims.</h2><table class="method-table"><thead><tr><th>Measure</th><th>What it means</th></tr></thead><tbody><tr><td>Scenario success</td><td>Passed ÷ (passed + failed + errors). Skipped and unfinished cases appear separately.</td></tr><tr><td>Checks</td><td>Passing assertions ÷ completed assertions. An interrupted case is never a scenario pass.</td></tr><tr><td>Guardrails</td><td>Unsafe-action detection and valid-action acceptance have separate denominators. Sample checks, not universal protection.</td></tr><tr><td>Timings</td><td>Median and nearest-rank p95 of completed case wall time, including setup and checks. Synthetic time is not model speed.</td></tr><tr><td>Audio WER / CER</td><td>Edit errors ÷ reference words / characters in raw ASR. NFKC, casefold, punctuation and diacritics removed; no spelling correction. WER can exceed 100%.</td></tr><tr><td>Medicine precision / recall</td><td>Distinct canonical names detected in raw ASR against authored expected names. Does not validate dosage or clinical appropriateness.</td></tr><tr><td>Role agreement</td><td>Greedy distinct text alignment ≥ 0.35 against authored turn roles. Unmatched turns fail. This is contextual role agreement, not acoustic DER.</td></tr><tr><td>Comparison</td><td>Complete matching pack, references, repetitions and provider configuration. Percentage-point change; an observed sample difference, not a causal claim.</td></tr></tbody></table></div>
+<div id="method-guardrails" class="subpanel pane-scroll" role="tabpanel" aria-labelledby="method-guardrails-tab"><h2>Protection, with a receipt.</h2><div class="method-grid"><article><i data-lucide="lock-keyhole" aria-hidden="true"></i><h3>Access &amp; consent</h3><p>Signed-in, assigned-doctor access. Required consent before capture. Reports and recordings stay owned.</p></article><article><i data-lucide="pill" aria-hidden="true"></i><h3>Medicine wording</h3><p>Keep source names and linked dose/avoid instructions. Changed wording invalidates review; unresolved names require doctor review.</p></article><article><i data-lucide="file-check-2" aria-hidden="true"></i><h3>Structure &amp; evidence</h3><p>Validate model JSON and supplied source IDs. Model output cannot grant doctor approval. Draft finalization remains blocked.</p></article><article><i data-lucide="git-pull-request-arrow" aria-hidden="true"></i><h3>State &amp; recovery</h3><p>Reject stale selections and source versions. Preserve checkpoints, explicit fallback state and immutable saved versions.</p></article><article><i data-lucide="eye-off" aria-hidden="true"></i><h3>Payload minimization</h3><p>Test direct identifier removal while retaining clinical meaning. Pattern checks do not prove complete de-identification.</p></article><article><i data-lucide="gauge" aria-hidden="true"></i><h3>Bounded evaluation</h3><p>Isolated clinic, fixed cases, request budget and worker deadline. Synthetic runs block outbound network; replay uses saved receipts.</p></article></div></div>
+<div id="method-limits" class="subpanel pane-scroll" role="tabpanel" aria-labelledby="method-limits-tab"><h2>What remains untested.</h2><div id="testUnassessed"></div><p>Authored scenarios and uploader-attested recordings are a small evaluation pack, not an independently annotated clinical dataset. Development and held-out clips run separately; once used for tuning, a held-out recording is no longer an untouched test.</p><p>Live text has no audio input. Recorded audio does not test browser microphone capture, telephone transport, overlapping speech or timed acoustic speaker clustering. A reference link establishes provenance, not medical correctness.</p><p>Stopped, interrupted and unexecuted cases stay visible. No percentages appear without a denominator. No claim of 100% clinical accuracy. Your latest 50 reports are retained; up to 20 recordings can be saved.</p></div>
+</section>
+</main>
 </body>
 </html>

@@ -26,10 +26,15 @@ class Probe:
     def __init__(self):
         self.checks = []
         self.steps = []
+        self.audio_metrics=None
+        self.provider_calls=[]
 
-    def check(self, label, expected, actual):
+    def check(self, label, expected, actual, metric=None):
         self.checks.append({'label': label, 'expected': expected, 'actual': actual,
-                            'status': 'PASSED' if expected == actual else 'FAILED'})
+                            'status': 'PASSED' if expected == actual else 'FAILED', **({'metric':metric} if metric else {})})
+
+    def artifact(self,label,data,stage='inspect'):
+        self.steps.append({'label':label,'data':data,'stage':stage})
 
     def call(self, label, function):
         started = time.perf_counter()
@@ -82,7 +87,7 @@ class Clinic:
             clinic_seed_path=ROOT_DIR/'app/data/clinic_seed.json', patient_records_dir=root/'patients',
             generated_notes_dir=root/'notes', icd_coding_enabled=True,
             receptionist_service_token='synthetic-report-reception-token-at-least-32-characters')
-        self.gateway = SecureLLMGateway(provider='openrouter' if mode == 'live_text' else 'mock')
+        self.gateway = SecureLLMGateway(provider='openrouter' if mode != 'synthetic' else 'mock')
         set_gateway(self.gateway)
         if mode == 'synthetic':
             self.gateway._adapter('mock').set_response('soap_generation', {
@@ -182,6 +187,8 @@ def extraction(key, value, **extra):
 
 
 def run_case(case_id, p, root):
+    from app.testing.extended_cases import run_extended
+    if run_extended(case_id,p,root):return
     from unittest.mock import patch
     from app.services.demo_call_service import DemoCallService
     from app.services.booking_flow import BookingFlow
@@ -190,12 +197,12 @@ def run_case(case_id, p, root):
         from medflow.medicines import check_turn, soap_issues
         source='Take Panadol 500 mg. Do not take Motilium 10 mg.'
         result=p.call('Check exact medicine wording',lambda:check_turn(source,source))
-        p.check('Preserved names, doses and stop instruction',[],result['issues'])
+        p.check('Preserved names, doses and stop instruction',[],result['issues'],'instruction_preservation')
         changed=soap_issues([{'text':source}],{'plan':'Take Panadol 500 mg.'})
-        p.check('Missing Motilium detected',True,'soap_medicine_missing:Motilium' in changed)
+        p.check('Missing Motilium detected',True,'soap_medicine_missing:Motilium' in changed,'unsafe_blocked')
         if case_id=='medicine-dose-stop':
-            p.check('Changed dosage flagged',True,bool(check_turn(source,source.replace('500','250'))['issues']))
-            p.check('Removed stop instruction flagged',True,bool(check_turn(source,source.replace('Do not take','Take'))['issues']))
+            p.check('Changed dosage flagged',True,bool(check_turn(source,source.replace('500','250'))['issues']),'unsafe_blocked')
+            p.check('Removed stop instruction flagged',True,bool(check_turn(source,source.replace('Do not take','Take'))['issues']),'unsafe_blocked')
         return
     if case_id=='medicine-context':
         import json
@@ -317,15 +324,21 @@ def run_case(case_id, p, root):
 def run_live(case_id, p, root):
     from app.services.demo_call_service import DemoCallService
     from app.services.booking_flow import BookingFlow
-    if case_id in {'live-correction','live-uncertainty'}:
+    if case_id in {'live-correction','live-uncertainty','live-history'}:
         service=DemoCallService(groq_api_key='',groq_llm_model='',openrouter_api_key=os.environ['OPENROUTER_API_KEY'])
-        state={'current':'age','step':'confirm','pending':{'key':'age','ur':'22','en':'22'}} if case_id=='live-correction' else {'current':'phone'}
-        text='نہیں، میری عمر 23 سال ہے' if case_id=='live-correction' else 'مجھے اپنا نمبر یاد نہیں'
+        state={'current':'age','step':'confirm','pending':{'key':'age','ur':'22','en':'22'}} if case_id=='live-correction' else {'current':'history'} if case_id=='live-history' else {'current':'phone'}
+        text='نہیں، میری عمر 23 سال ہے' if case_id=='live-correction' else 'میری کوئی پرانی بیماری نہیں ہے' if case_id=='live-history' else 'مجھے اپنا نمبر یاد نہیں'
         result=p.call('OpenRouter text extraction',lambda:service._extract(BookingFlow(state),text))
         p.check('Provider completed without fallback',False,result.get('_process_metadata',{}).get('fallback',True))
         if case_id=='live-correction':p.check('Corrected age','23',result.get('fields',{}).get('age',{}).get('en'))
+        elif case_id=='live-history':
+            history=result.get('fields',{}).get('history',{}).get('en','').casefold()
+            p.check('No reported history retained',True,any(word in history for word in ['none','no ','not reported','no known']))
         else:p.check('No invented phone',False,bool(result.get('fields',{}).get('phone')))
         p.steps.append({'label':'Provider interpretation','data':{'fields':result.get('fields',{}),'interpretation':result.get('interpretation',{}),'method':result.get('_process_metadata',{})}});return
+    if case_id!='live-soap':
+        from app.testing.live_cases import run_pipeline
+        run_pipeline(case_id,p,root);return
     fixture=Clinic(root,'live_text')
     try:
         fixture.ready();fixture.checkpoint();result=p.call('Real SOAP provider and saved draft',fixture.generate)
@@ -348,7 +361,7 @@ def run_live(case_id, p, root):
 
 def main():
     mode=sys.argv[1];root=Path(sys.argv[2]).resolve()
-    if mode not in {'synthetic','live_text'}:raise ValueError('Unsupported mode')
+    if mode not in {'synthetic','live_text','audio'}:raise ValueError('Unsupported mode')
     with contextlib.redirect_stdout(sys.stderr):
         try:
             bootstrap(root,mode)
@@ -358,11 +371,27 @@ def main():
             emit({'type':'runner_error','error_type':type(exc).__name__,
                   'missing_module':exc.name if isinstance(exc,ModuleNotFoundError) else None})
             return 1
-        for index,scenario in enumerate(catalog(mode)):
+        manifest=json.loads((root/'manifest.json').read_text()) if (root/'manifest.json').exists() else {'cases':catalog(mode),'clips':[]}
+        from app.testing.provider_budget import RequestBudget
+        from security_guardrails.telemetry import collect_provider_events
+        budget=RequestBudget()
+        if mode!='synthetic':budget.install()
+        for index,scenario in enumerate(manifest['cases']):
+            if mode!='synthetic' and budget.used>=budget.total:
+                emit({'type':'runner_error','error_type':'RequestBudgetExceeded'});break
             emit({'type':'case_started','id':scenario['id']})
             probe=Probe();started=time.perf_counter();status='ERROR';error=None
+            budget.reset_case()
+            provider_events=[]
             try:
-                (run_live if mode=='live_text' else run_case)(scenario['id'],probe,root/str(index))
+                with collect_provider_events() as provider_events:
+                    source_id=scenario.get('source_id',scenario['id'])
+                    if mode=='audio':
+                        from app.testing.audio_cases import run_audio
+                        clip=next(c for c in manifest['clips'] if c['clip_id']==source_id)
+                        run_audio(clip,probe,root/str(index))
+                    else:(run_live if mode=='live_text' else run_case)(source_id,probe,root/str(index))
+                if mode!='synthetic':probe.check('Real provider HTTP response received',True,any(row['status']=='complete' for row in budget.events),'source_integrity')
                 status='PASSED' if probe.checks and all(item['status']=='PASSED' for item in probe.checks) else 'FAILED'
             except Exception as exc:
                 # Provider exceptions can contain credentials/URLs. Report only
@@ -370,7 +399,8 @@ def main():
                 error={'type':type(exc).__name__,'code':str(getattr(exc,'code','SCENARIO_ERROR'))[:64],
                        'message':'Scenario could not finish. Inspect the completed checks and retry.'}
             emit({'type':'case_finished','id':scenario['id'],'status':status,'checks':probe.checks,
-                  'steps':probe.steps,'duration_ms':round((time.perf_counter()-started)*1000,2),'error':error})
+                  'steps':probe.steps,'audio_metrics':probe.audio_metrics,'provider_calls':provider_events+budget.events,
+                  'duration_ms':round((time.perf_counter()-started)*1000,2),'error':error})
         emit({'type':'finished'})
     return 0
 

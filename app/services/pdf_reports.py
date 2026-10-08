@@ -95,21 +95,74 @@ def visit_pdf(payload, patient, doctor, *, technical=False):
         reference=f"{payload['note_id']} / v{payload['version']} - Synthetic demo; not a clinical prescription")
 
 
+def _rate_text(rate):
+    return f"{rate['numerator']} / {rate['denominator']} ({rate['percent']}%)" if rate.get('denominator') else 'Not tested'
+
+
 def testing_pdf(report):
-    sections = [('Measured summary',[
-        ' | '.join(f'{key}: {value}' for key,value in report['totals'].items()),
-        f"Elapsed: {report.get('duration_ms')} ms | {report['timing_scope']}",
-        f"Run: {report['run_id']} | Pack: {report['pack_version']}",
-        f"Source SHA256: {report.get('environment',{}).get('source_sha256','Not recorded')}"])]
-    for case in report['cases']:
+    from app.testing.evaluation import scores
+    measured=scores(report);timing=measured['timings']
+    sections=[('Measured summary',[
+        'Scenario success: '+_rate_text(measured['success'])+' | Completed assertions: '+_rate_text(measured['checks']),
+        'Attempted / planned: '+_rate_text(measured['completion'])+' | '+' | '.join(f'{key}: {value}' for key,value in report['totals'].items()),
+        f"Median: {timing['median_ms']} ms | p95: {timing['p95_ms']} ms | n={timing['n']} completed case timings. Includes setup and checks.",
+        f"Run wall time: {report.get('duration_ms')} ms. {report['timing_scope']}"]),
+        ('Coverage by category',[
+            f"{row['name']}: {_rate_text(row)} | {row['failed']} failed | {row['errors']} errors | {row['unassessed']} not evaluated"
+            for row in measured['categories']]),
+        ('Checks by purpose',[
+            f"{key.replace('_',' ')}: {_rate_text(rate)}" for key,rate in measured['metrics'].items()
+            if rate['denominator']] or ['No purpose-tagged assertions in this saved pack.'])]
+    if measured['audio']['clips']:
+        audio=measured['audio']
+        sections.append(('Recorded audio measurements',[
+            f"ASR-scored recordings: {audio['clips']} | Raw ASR word error rate: {_rate_text(audio['word_error_rate'])}",
+            'Raw ASR character error rate: '+_rate_text(audio['character_error_rate']),
+            'Medicine name precision: '+_rate_text(audio['medicine_precision'])+' | Recall: '+_rate_text(audio['medicine_recall']),
+            'Contextual text role agreement: '+_rate_text(audio['roles']),
+            'WER/CER use NFKC, casefold and punctuation/diacritic removal; no spelling correction. WER may exceed 100%. Role agreement uses distinct greedy text alignment, not acoustic DER. References are uploader-attested fictional scripts, not independent annotations.']))
+    failures=[case for case in report['cases'] if case['status'] in {'FAILED','ERROR'}]
+    sections.append(('Failures and errors', [f"{len(failures)} cases need attention. Full per-case artifacts and assertions remain in the Cases tab and JSON export."]))
+    for case in failures:
         lines=[f"Input: {case['input']}",f"Expected: {case['expected']}",f"Scope: {case['scope']}"]
-        if case.get('duration_ms') is not None:
-            lines.append(f"Measured duration: {case['duration_ms']} ms")
         for check in case.get('checks',[]):
-            lines.append(f"{check['status']} - {check['label']} | Expected: {check['expected']} | Actual: {check['actual']}")
+            if check['status']=='FAILED':
+                lines.append(f"FAILED - {check['label']} | Expected: {str(check['expected'])[:1000]} | Actual: {str(check['actual'])[:1000]}")
         if case.get('error'):lines.append(case['error']['message'])
         if not case.get('checks'):lines.append('No completed assertions; not counted as a pass.')
         sections.append((case['title']+' - '+case['status'],lines))
-    sections.append(('Evaluation limits',['Synthetic results check software behavior, not microphone recognition or clinical accuracy. '
-        'Live text results use provider requests but do not measure audio or validated medical correctness.']))
-    return render_pdf('Demo Testing Report',report['started_at'],sections,status=report['status'],reference=report['run_id'])
+    sections.extend([
+        ('Reproducibility receipt',[
+            f"Run: {report['run_id']} | Pack: {report['pack_version']} | Mode: {report['mode']} | Repetitions: {report.get('repetitions',1)}",
+            f"Protocol: {report.get('evaluation_protocol','Legacy pack; not comparable')}",
+            f"Reference SHA256: {report.get('reference_sha256','Not recorded')}",
+            f"Application source SHA256: {report.get('environment',{}).get('source_sha256','Not recorded')}",
+            f"Provider: {report.get('environment',{}).get('provider','Not recorded')} | Model: {report.get('environment',{}).get('model') or 'Controlled fixture'}"]),
+        ('Evaluation limits',[
+            'Small authored pack. Synthetic results check software behavior with controlled providers and isolated storage. Live text tests factual wording without audio. Recorded audio tests files through the pipeline, not browser microphone or telephone capture.',
+            'Source links and doctor wording confirmation do not establish clinical correctness. Percentages are sample measurements, not model confidence. Stopped, interrupted and unexecuted cases are never passes. No baseline or improvement is invented.',
+            'Untested: '+ '; '.join(report.get('unassessed',[]))])])
+    return render_pdf('Evaluation Report',report['started_at'],sections,status=report['status'],reference=report['run_id'])
+
+
+def comparison_pdf(baseline,current):
+    from app.testing.evaluation import comparison
+    result=comparison(baseline,current)
+    delta=result['success_delta_pp']
+    sections=[('Comparison eligibility',[
+        f"Observed scenario success change: {delta:+.2f} percentage points." if delta is not None else 'No improvement percentage available. '+ '; '.join(result['reasons']),
+        result['scope']]),
+        ('Measured outcomes',[
+            f"Baseline: {_rate_text(result['baseline']['success'])} | Current: {_rate_text(result['current']['success'])}",
+            f"Median case wall time: {result['baseline']['timings']['median_ms']} ms -> {result['current']['timings']['median_ms']} ms. Includes setup and checks.",
+            *[f"{row['name']}: {_rate_text(row['baseline']) if row['baseline'] else 'Not tested'} -> {_rate_text(row['current'])}"+
+                 (f" | {row['delta_pp']:+.2f} pp" if row['delta_pp'] is not None else ' | Not comparable') for row in result['categories']]]),
+        ('Run receipts',[
+            f"Baseline: {baseline['run_id']} | {baseline['started_at']} | {baseline['status']}",
+            f"Current: {current['run_id']} | {current['started_at']} | {current['status']}",
+            f"Pack: {current['pack_version']} | Protocol: {current.get('evaluation_protocol','Not recorded')}",
+            f"Baseline application SHA256: {baseline.get('environment',{}).get('source_sha256','Not recorded')}",
+            f"Current application SHA256: {current.get('environment',{}).get('source_sha256','Not recorded')}",
+            'Small fixed samples; no statistical significance or clinical accuracy claim. Different code with matching references is an observed before/after comparison, not proof of causality.'])]
+    return render_pdf('Evaluation Comparison',current['started_at'],sections,
+        status='Comparable fixed runs' if result['compatible'] else 'Not comparable',reference=current['run_id'])
