@@ -40,7 +40,7 @@ def alias_patterns():
     return [(word_pattern(alias), row) for row in vocabulary()['entries'] for alias in set(row['aliases'])]
 
 
-def mentions(text):
+def mentions(text,*,context=False):
     """Exact aliases first; context candidates are preserved, never autocorrected."""
     found = []
     for pattern, row in alias_patterns():
@@ -48,6 +48,8 @@ def mentions(text):
             found.append({'start': match.start(), 'end': match.end(), 'source': match.group(),
                           'name': row['name'], 'catalog_id': row['id'], 'status': row['status'],
                           'source_url': row.get('source_url')})
+    from medflow.medicine_catalogue import exact_mentions
+    found.extend(exact_mentions(text,context=context))
     chosen = []
     for item in sorted(found, key=lambda v: (-(v['end']-v['start']), v['start'])):
         if not any(item['start'] < old['end'] and old['start'] < item['end'] for old in chosen): chosen.append(item)
@@ -65,11 +67,18 @@ def mentions(text):
             normalized=''.join(c for c in raw if not unicodedata.combining(c)).casefold()
             if normalized in STOP or len(normalized)<3 or any(start < old['end'] and old['start'] < end for old in chosen): continue
             chosen.append({'start':start,'end':end,'source':raw,'name':raw,'catalog_id':None,'status':'context_candidate','source_url':None})
+    from medflow.medicine_matching import contextual_candidates,ORDINARY
+    for match in re.finditer(r'(?:آپ|اپ)\s+کو\s+([A-Za-z\u0600-\u06ff][\w\u064b-\u065f-]*)(?=.{0,45}دے\s+رہا)',text):
+        raw=match.group(1);start,end=match.span(1)
+        if raw.casefold() in STOP or raw.casefold() in ORDINARY or len(raw)<3 or any(start<row['end'] and row['start']<end for row in chosen):continue
+        chosen.append({'start':start,'end':end,'source':raw,'name':raw,'catalog_id':None,'status':'context_candidate','source_url':None})
+    chosen=[row for row in chosen if row['status']!='context_candidate' or row['source'].casefold() not in ORDINARY]
+    chosen.extend(contextual_candidates(text,chosen,context=context))
     return sorted(chosen,key=lambda v:v['start'])
 
 
-def protect(text, namespace='turn'):
-    rows=mentions(text)
+def protect(text, namespace='turn',*,context=False):
+    rows=mentions(text,context=context)
     prefix='MF_MED_'+hashlib.sha256((namespace+':'+text).encode()).hexdigest()[:10]
     for index,item in enumerate(rows): item['token']=prefix+'_'+str(index)
     protected=text
@@ -133,8 +142,8 @@ def fingerprint(original, english):
     return hashlib.sha256((original+'\0'+english).encode()).hexdigest()
 
 
-def check_turn(original, english, review=None):
-    rows=mentions(original)
+def check_turn(original, english, review=None,*,context=False):
+    rows=mentions(original,context=context)
     checked=bool(review and review.get('fingerprint')==fingerprint(original,english))
     compared=[dict(row) for row in rows]
     # A clinician's explicit English spelling is permitted for an unverified name
@@ -158,16 +167,16 @@ def check_turn(original, english, review=None):
             'reviewed_by':review.get('reviewed_by') if checked else None}
 
 
-def clinician_review(original, english, spellings, actor_ref):
+def clinician_review(original, english, spellings, actor_ref,*,context=False):
     """Attest an exact revision; never use an acknowledgement to bypass known names."""
-    unknown={r['source'] for r in mentions(original) if r['status']!='catalog_name'}
+    unknown={r['source'] for r in mentions(original,context=context) if r['status']!='catalog_name'}
     if any(key not in unknown or not isinstance(value,str) or not value.strip()
            or len(value)>100 or not word_pattern(value.strip()).search(english)
            for key,value in spellings.items()):
         raise ValueError('Each confirmed spelling must name an uncertain source mention and appear in the English turn.')
     review={'fingerprint':fingerprint(original,english),'reviewed_by':actor_ref,
             'spellings':{key:value.strip() for key,value in spellings.items()}}
-    if check_turn(original,english,review)['issues']:
+    if check_turn(original,english,review,context=context)['issues']:
         raise ValueError('Correct the medicine name, stated dose or negation in the English turn before confirming it.')
     return review
 
@@ -205,7 +214,7 @@ def soap_issues(utterances, soap):
     for item in utterances:
         row=item if isinstance(item,dict) else item.model_dump(mode='json')
         text=row.get('clinical_english') or row.get('text') or row.get('original_text') or ''
-        checked=check_turn(row.get('original_text') or text,text,row.get('medicine_review'))
+        checked=check_turn(row.get('original_text') or text,text,row.get('medicine_review'),context=row.get('medicine_context',False))
         names=[r.get('confirmed_english') or (r['name'] if r['status']=='catalog_name' else r['source']) for r in checked['mentions']]
         source.append((text,names))
     text='\n'.join(str(soap.get(section,'') or '') for section in ('subjective','objective','assessment','plan'))
@@ -236,7 +245,7 @@ def report(utterances):
     checks=[]
     for item in utterances:
         row=item if isinstance(item,dict) else item.model_dump(mode='json')
-        checked=check_turn(row.get('original_text') or row.get('text') or '',row.get('clinical_english') or row.get('text') or '',row.get('medicine_review'))
+        checked=check_turn(row.get('original_text') or row.get('text') or '',row.get('clinical_english') or row.get('text') or '',row.get('medicine_review'),context=row.get('medicine_context',False))
         if checked['mentions'] or checked['issues']: checks.append({'utterance_id':row['utterance_id'],**checked})
     return {'checks':checks,'requires_review':any(c['issues'] for c in checks),'catalog_version':vocabulary()['version'],
             'scope':'Name/dose/negation preservation checks. Not medicine identification, calibrated confidence or clinical correctness.'}

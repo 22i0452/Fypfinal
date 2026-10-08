@@ -73,6 +73,9 @@ def _policies() -> dict[str, TaskPolicy]:
         "intake_translate": TaskPolicy("intake_translate", groq_chat, json_required=True),
         "diarization": TaskPolicy("diarize", openai_chat, json_required=True),
         "translation": TaskPolicy("translate", openai_chat, json_required=True),
+        "medicine_matching": TaskPolicy("translate", openai_chat, json_required=True),
+        "medicine_lookup_query": TaskPolicy("translate", openai_chat, json_required=True),
+        "medicine_translation_repair": TaskPolicy("translate", openai_chat, json_required=True),
         "after_visit_translation": TaskPolicy("translate", openai_chat, json_required=True),
         "transcript_cleanup": TaskPolicy("transcript_cleanup", openai_chat, json_required=True),
         "soap_generation": TaskPolicy("soap_generate", openai_chat, json_required=True),
@@ -116,6 +119,7 @@ def _policies() -> dict[str, TaskPolicy]:
 
 
 def _preferred_model(task_type: str, provider: str, allowed_models: set[str]) -> str:
+    if task_type in {'medicine_matching','medicine_translation_repair','medicine_lookup_query'}:task_type='transcript_cleanup'
     preferred_by_task = {
         "module2_stt": {
             "openrouter": _env("MODULE2_OPENROUTER_STT_MODEL", "openai/gpt-4o-transcribe"),

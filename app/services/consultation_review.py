@@ -66,6 +66,7 @@ class ConsultationReviewService:
         return {key: value.get(key) for key in ('status', 'revision', 'transcript_id', 'run_id', 'template_id', 'auto_soap', 'last_error', 'note_id', 'updated_at', 'reviewed_by', 'reviewed_at', 'audio_retention')} | {
             'utterances': [self.c.documentation_service.utterance_payload(item, translated=True) for item in transcript.utterances],
             'medicine_report':medicine_report(transcript.utterances),
+            'symptom_patterns':transcript.symptom_patterns,
             'raw_asr_text':transcript.raw_asr_text}
 
     def prepare(self, workflow_id, transcript, run_id, template_id, auto_soap):
@@ -138,6 +139,9 @@ class ConsultationReviewService:
                     update.update(speaker=Speaker(correction['speaker']), addressed_to=None, needs_review=correction['speaker']=='UNKNOWN')
                     update['speaker_relation'] = correction.get('speaker_relation') if correction['speaker']=='ATTENDANT' else None
                 turns.append(item.model_copy(update=update))
+            from medflow.medicine_matching import FRAME_RE,WORD_RE
+            turns=[turn.model_copy(update={'medicine_context':index>0 and len(WORD_RE.findall(turn.original_text))<=5
+                and bool(FRAME_RE.search(turns[index-1].original_text))}) for index,turn in enumerate(turns)]
             patient = self.c.patient_repository.get(workflow.patient_id)
             def translate_corrected():
                 translated = self.c.documentation_service.translate(turns, patient=patient)
@@ -148,17 +152,23 @@ class ConsultationReviewService:
                     correction=changes.get(item.utterance_id,{})
                     old=previous[item.utterance_id]
                     if not correction:
-                        result.append(old.model_copy(update={'transcript_id':new_transcript_id}))
+                        context_changed=item.medicine_context!=old.medicine_context
+                        update={'transcript_id':new_transcript_id}
+                        if context_changed:
+                            update.update(medicine_context=item.medicine_context,medicine_review=None,
+                                medicine_suggestions=item.medicine_suggestions,
+                                medicine_checks=check_turn(old.original_text,old.clinical_english,context=item.medicine_context))
+                        result.append(old.model_copy(update=update))
                         continue
                     english=correction.get('clinical_english',item.clinical_english)
-                    review=old.medicine_review if english==old.clinical_english and item.original_text==old.original_text else None
+                    review=old.medicine_review if english==old.clinical_english and item.original_text==old.original_text and item.medicine_context==old.medicine_context else None
                     if correction.get('medicines_reviewed'):
                         try:
-                            review=clinician_review(item.original_text,english,correction.get('medicine_spellings',{}),actor.ref)
+                            review=clinician_review(item.original_text,english,correction.get('medicine_spellings',{}),actor.ref,context=item.medicine_context)
                         except ValueError as exc:
                             raise ConsultationReviewError('INVALID_MEDICINE_REVIEW',str(exc)) from exc
                     result.append(item.model_copy(update={'clinical_english':english,'medicine_review':review,
-                        'medicine_checks':check_turn(item.original_text,english,review)}))
+                        'medicine_checks':check_turn(item.original_text,english,review,context=item.medicine_context)}))
                 return result
             translated = self._trace_call(claimed, 'translation', translate_corrected, lambda result: {'utterances': [self.c.documentation_service.utterance_payload(item, translated=True) for item in result], 'revision': revision+1, 'clinician_corrected_turns': list(changes)})
             latest = self.context(workflow_id, actor)

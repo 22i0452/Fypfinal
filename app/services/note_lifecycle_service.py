@@ -251,6 +251,7 @@ class NoteLifecycleService:
                 "evidence": [item.model_dump(mode="json") for item in version.evidence],
                 "generated_by": "AI Medical Scribe",
                 "medicine_report":medicines,
+                "symptom_patterns":transcript.symptom_patterns if transcript else {},
                 "evidence_report": report,
             },
             "transcript": [DocumentationService.utterance_payload(item, translated=True) for item in transcript.utterances]

@@ -33,7 +33,7 @@ from security_guardrails import (
     require_authorized,
 )
 from receptionist.urdu_stt_utils import normalize_text, prepare_audio_for_stt, resample_audio
-from medflow.medicines import check_turn, report as medicine_report, stt_vocabulary_hint, protect, restore, translation_issues
+from medflow.medicines import check_turn, report as medicine_report, stt_vocabulary_hint, protect, restore, translation_issues, fingerprint
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -170,7 +170,10 @@ class DocumentationService:
                     "needs_review": True,
                 }
             ]
-        return [self._utterance(transcript_id, entry, index) for index, entry in enumerate(entries, start=1)]
+        from medflow.medicine_matching import FRAME_RE,WORD_RE
+        turns=[self._utterance(transcript_id, entry, index) for index, entry in enumerate(entries, start=1)]
+        return [turn.model_copy(update={'medicine_context':index>0 and len(WORD_RE.findall(turn.original_text))<=5
+            and bool(FRAME_RE.search(turns[index-1].original_text))}) for index,turn in enumerate(turns)]
 
     def translate(self, utterances: list[TranscriptUtterance], *, patient: Patient) -> list[TranscriptUtterance]:
         source = [self.utterance_payload(item) for item in utterances]
@@ -188,8 +191,9 @@ class DocumentationService:
                     update={
                         "clinical_english": str(item.get("clinical_english") or item.get("text") or "").strip(),
                         "needs_review": utterance.needs_review or bool(item.get("needs_review")),
-                        "medicine_checks": item.get('medicine_checks') or check_turn(utterance.original_text,str(item.get('clinical_english') or item.get('text') or '')),
+                        "medicine_checks": item.get('medicine_checks') or check_turn(utterance.original_text,str(item.get('clinical_english') or item.get('text') or ''),context=utterance.medicine_context),
                         "medicine_review": None,
+                        "medicine_suggestions":item.get('medicine_suggestions',{}),
                     }
                 )
             )
@@ -208,6 +212,8 @@ class DocumentationService:
         existing=self.transcripts.get(transcript_id)
         if existing and (existing.patient_id!=patient_id or existing.encounter_id!=encounter_id):
             raise DocumentationError('PATIENT_MISMATCH','Transcript belongs to a different visit')
+        from medflow.symptom_patterns import lookup
+        symptom_patterns=lookup(utterances)
         return self.transcripts.save(
             TranscriptRecord(
                 transcript_id=transcript_id,
@@ -216,6 +222,7 @@ class DocumentationService:
                 utterances=utterances,
                 raw_asr_text=raw_asr_text if raw_asr_text is not None else existing.raw_asr_text if existing else '',
                 source_transcript_id=source_transcript_id or (existing.source_transcript_id if existing else None),
+                symptom_patterns=symptom_patterns,
             )
         )
 
@@ -316,8 +323,10 @@ class DocumentationService:
             "clinical_english": utterance.clinical_english,
             "text": text,
             "needs_review": utterance.needs_review,
-            "medicine_checks": check_turn(utterance.original_text,utterance.clinical_english,utterance.medicine_review),
+            "medicine_checks": check_turn(utterance.original_text,utterance.clinical_english,utterance.medicine_review,context=utterance.medicine_context),
             "medicine_review": utterance.medicine_review,
+            "medicine_context":utterance.medicine_context,
+            "medicine_suggestions":utterance.medicine_suggestions if utterance.medicine_suggestions.get('fingerprint')==fingerprint(utterance.original_text,utterance.clinical_english) else {},
         }
 
     @staticmethod
