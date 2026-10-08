@@ -53,3 +53,54 @@ python -m unittest tests.test_medicine_preservation tests.test_medicine_matching
 ```
 
 New regression cases include PREVENT verb/brand separation, lowercase approved spellings, short multi-party name turns, prescriptions/doses/negation in fallback, and API workflows after approval for both provider failure and validation rejection. This follow-up did not rerun the browser suites above and does not measure live model or audio accuracy. After pulling and restarting Replit, test a fresh SOAP draft; already saved notes are not rewritten.
+
+## Follow-up: complete consultation medicine context
+
+The medicine pipeline now sends the complete chronological source consultation,
+speaker roles, relationships, addressees and relevant intake context to the LLM
+before translation. Entity identification uses one request, without turn chunks,
+neighbour windows or source-text truncation. Optional transliteration retrieval
+and catalogue candidate selection also receive the complete consultation in one
+request per stage. Local candidates are hints, not evidence that a word is a drug.
+
+Decisions must refer to exact original source spans. Explicit non-medicine
+decisions remove false catalogue flags consistently from translation, transcript
+review and SOAP checks. Known curated brand names and doctor-confirmed wording
+cannot be erased by an automatic negative decision. Missing or invalid model
+responses keep original wording reviewable and show the contextual check as
+unavailable; they never silently fall back to a partial-context LLM request.
+
+Catalogue-validated spelling proposals populate the English translation and
+medicine editor automatically while preserving original Urdu. A single explicit
+doctor confirmation records that spelling. SOAP receives the source medicine
+manifest, complete translated consultation and, on retry, the rejected draft plus
+the specific failed checks. Invalid model JSON gets a retry. Fallback drafts
+preserve exact medicines and source IDs, separate test orders from observed
+findings, and remain subject to clinician review.
+
+96 synthetic Python tests passed in 14.734 seconds:
+
+```sh
+python -m tests.run_offline_regressions tests.test_medicine_context tests.test_medicine_preservation tests.test_medicine_matching tests.test_soap_quality tests.test_note_lifecycle tests.test_guided_consultation tests.test_transcript_identity tests.test_evidence_checks tests.test_process_observability tests.test_consultation_websocket
+node tests/test_medicine_editor.cjs
+```
+
+The runner blocks all outbound IPv4/IPv6 socket connections, including optional
+TTS startup warmup. LLM and transcription responses are synthetic mocks; API
+tests use in-process clients. The Node check executes the real medicine editor
+markup and verifies automatic spelling, unchecked confirmation, doctor override
+and empty state. Browser suites from earlier updates were not rerun for this
+follow-up because a browser executable is unavailable in this environment.
+
+New cases cover the screenshot's Urdu test wording, long consultations with all
+25 turns retained, LLM-discovered names missed by lexical rules, Panadol spelling
+proposals, invalid/stale/contradictory decisions, clinician override, saved and
+reloaded contextual decisions, fallback source links and SOAP repair payloads.
+Python compilation, JavaScript syntax and git whitespace checks also passed.
+
+This adds an automatic context request and increases input size for later name
+checks; latency and token usage may increase. The configured LLM/provider is
+unchanged. Provider context limits are surfaced as unavailable checks, not
+hidden truncation. These software tests do not establish clinical accuracy or
+zero medicine recognition errors. Saved notes are not rewritten: test a fresh
+transcript and SOAP draft after pulling this branch and restarting Replit.

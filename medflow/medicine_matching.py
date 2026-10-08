@@ -13,6 +13,7 @@ from medflow.medicine_catalogue import entries as imported_entries
 WORD_RE=re.compile(r'[A-Za-z\u0600-\u06ff][\w\u064b-\u065f-]*')
 FRAME_RE=re.compile(r'(?<!\w)(?:medicine|medication|tablet|capsule|syrup|prescrib\w*|take|taking|continue|stop|avoid|allerg\w*|dawai|dawa|دوائی|دوا|گولی|کیپسول|شربت|لیں|لیتا|لیتی|لی|تجویز|الرجی)(?!\w)|(?:آپ|اپ)\s+کو.{0,55}دے\s+رہا',re.I)
 ORDINARY=frozenset('which what when where why how currently usually already only please also again recently previously have has had been these those number called about tell say says said know meaning example question answer doctor mg mcg ml gram grams milligram milligrams severe mild headache pain cough nausea vomiting symptom symptoms blood pressure diabetes stomach every hours hour weeks week days day months month morning evening night times once twice three four five six eight twelve maintain hydration fluids plenty water follow review return next consult followup regularly yesterday today tomorrow before after doctor patient hospital appointment clinic tablets antibiotics analgesic painkillers painkiller treatment prescribed prescription take taking stopping stopped medicine medications allergic allergy allergies an some any name named give given giving use using استعمال دوا دوائی تجویز الرجی پہلے بعد آج کل'.split())
+ORDINARY |= frozenset('test tests testing blood examination temperature lab laboratory investigation investigations ٹیسٹ ٹیسٹس بلڈ خون معائنہ ٹمپریچر درجہ حرارت رپورٹ رپورٹس'.split())
 
 def normalized(value):
     value=unicodedata.normalize('NFKC',value).casefold()
@@ -118,40 +119,44 @@ def query_candidates(spelling):
                  'source_filename':row.get('source_filename'),'source_rows':row.get('source_rows',[])} for row in exact]
     return candidates(spelling)
 
-def lookup_queries(jobs,*,patient_ref,patient_context):
+def lookup_queries(jobs,*,patient_ref,patient_context,conversation):
     from security_guardrails import Actor,get_gateway
     outputs={}
-    for offset in range(0,len(jobs),12):
-        batch=jobs[offset:offset+12];allowed={job['mention_id']:job for job in batch}
-        try:
-            result=get_gateway().chat_json(task_type='medicine_lookup_query',actor=Actor(actor_id='translator-agent',role='translator'),
-                patient_ref=patient_ref,patient_context=patient_context or {},temperature=0,max_tokens=1200,
-                messages=[{'role':'system','content':QUERY_PROMPT},{'role':'user','content':json.dumps({'mentions':batch},ensure_ascii=False)}])
-            rows=result.get('queries',[])
-            if not isinstance(rows,list):raise ValueError('Invalid medicine lookup queries')
-            for mid,job in allowed.items():
-                answers=[row for row in rows if isinstance(row,dict) and row.get('mention_id')==mid]
-                spellings=answers[0].get('latin_spellings',[]) if len(answers)==1 else []
-                choices=[]
-                if isinstance(spellings,list):
-                    for spelling in spellings[:2]:
-                        if not isinstance(spelling,str) or len(spelling)>100 or not re.fullmatch(r"[A-Za-z][A-Za-z '\-]+",spelling):continue
-                        # Free LLM wording is not itself a medicine candidate. It
-                        # can retrieve only real names already in our reference.
-                        choices.extend(query_candidates(spelling))
-                seen=set();choices=[row for row in choices if not (row['catalog_id'] in seen or seen.add(row['catalog_id']))]
-                outputs[mid]={'candidates':choices[:8],'status':'complete'}
-        except Exception:
-            for mid in allowed:outputs[mid]={'candidates':[],'status':'llm_unavailable'}
+    batch = jobs
+    allowed={job['mention_id']:job for job in batch}
+    try:
+        result=get_gateway().chat_json(task_type='medicine_lookup_query',actor=Actor(actor_id='translator-agent',role='translator'),
+            patient_ref=patient_ref,patient_context=patient_context or {},temperature=0,max_tokens=6000,
+            messages=[{'role':'system','content':QUERY_PROMPT},{'role':'user','content':json.dumps({'conversation':conversation,'mentions':batch},ensure_ascii=False)}])
+        rows=result.get('queries',[])
+        if not isinstance(rows,list):raise ValueError('Invalid medicine lookup queries')
+        for mid,job in allowed.items():
+            answers=[row for row in rows if isinstance(row,dict) and row.get('mention_id')==mid]
+            spellings=answers[0].get('latin_spellings',[]) if len(answers)==1 else []
+            choices=[]
+            if isinstance(spellings,list):
+                for spelling in spellings[:2]:
+                    if not isinstance(spelling,str) or len(spelling)>100 or not re.fullmatch(r"[A-Za-z][A-Za-z '\-]+",spelling):continue
+                    # Free LLM wording is not itself a medicine candidate. It
+                    # can retrieve only real names already in our reference.
+                    choices.extend(query_candidates(spelling))
+            seen=set();choices=[row for row in choices if not (row['catalog_id'] in seen or seen.add(row['catalog_id']))]
+            outputs[mid]={'candidates':choices[:8],'status':'complete'}
+    except Exception:
+        for mid in allowed:outputs[mid]={'candidates':[],'status':'llm_unavailable'}
     return outputs
 
 def automatic_matches(turns,*,patient_ref='',patient_context=None):
-    from medflow.medicines import mentions,fingerprint
+    from medflow.medicines import mentions,fingerprint,effective_mentions
+    from medflow.medicine_context import analyze,conversation_context
     from security_guardrails import Actor,get_gateway
     jobs=[];outputs={};source_rows=[];query_jobs=[]
+    lexical_rows=[mentions(t.get('original_text') or t.get('text') or '',context=t.get('medicine_context',False)) for t in turns]
+    contextual=analyze(turns,lexical_rows,patient_ref=patient_ref,patient_context=patient_context)
+    conversation=conversation_context(turns)
     for index,turn in enumerate(turns):
         uid=str(turn.get('utterance_id') or f'U{index+1}');source=turn.get('original_text') or turn.get('text') or ''
-        rows=mentions(source,context=turn.get('medicine_context',False));source_rows.append(rows)
+        rows=effective_mentions(source,context=turn.get('medicine_context',False),analysis=contextual[uid]);source_rows.append(rows)
         for row in rows:
             if row['status']=='catalog_name':continue
             choices=candidates(row['source'])
@@ -159,9 +164,9 @@ def automatic_matches(turns,*,patient_ref='',patient_context=None):
             # spelling first. Exact known names never enter this free-text step.
             if choices and re.fullmatch('[A-Za-z\\-]+',row['source']):continue
             mid='M_'+hashlib.sha256((uid+'\0'+source+'\0'+str(row['start'])).encode()).hexdigest()[:16]
-            query_jobs.append({'mention_id':mid,'recognized':row['source'],'original':source[:4000],
-                'previous_turn':(turns[index-1].get('original_text') or turns[index-1].get('text') or '')[:1000] if index>0 and turn.get('medicine_context') else ''})
-    queries=lookup_queries(query_jobs,patient_ref=patient_ref,patient_context=patient_context) if query_jobs else {}
+            query_jobs.append({'mention_id':mid,'recognized':row['source'],'original':source,
+                'previous_turn':(turns[index-1].get('original_text') or turns[index-1].get('text') or '') if index>0 else ''})
+    queries=lookup_queries(query_jobs,patient_ref=patient_ref,patient_context=patient_context,conversation=conversation) if query_jobs else {}
     for index,turn in enumerate(turns):
         uid=str(turn.get('utterance_id') or f'U{index+1}');source=turn.get('original_text') or turn.get('text') or ''
         rows=source_rows[index];items=[]
@@ -178,44 +183,45 @@ def automatic_matches(turns,*,patient_ref='',patient_context=None):
                   'lookup_method':'automatic transliteration query' if query else 'local spelling/sound'}
             items.append(item)
             if not choices:continue
-            jobs.append({'mention_id':mention_id,'original':source[:4000],'speaker':turn.get('speaker','Unknown'),
+            jobs.append({'mention_id':mention_id,'original':source,'speaker':turn.get('speaker','Unknown'),
                          'recognized':row['source'],'exact_catalogue_wording':row['status']=='catalog_name',
-                         'previous_turn':(turns[index-1].get('original_text') or turns[index-1].get('text') or '')[:1000] if index>0 and turn.get('medicine_context') else '',
+                         'previous_turn':(turns[index-1].get('original_text') or turns[index-1].get('text') or '') if index>0 else '',
                          'candidates':[{'catalog_id':c['catalog_id'],'name':c['name']} for c in choices]})
         english=turn.get('clinical_english') or turn.get('text') or ''
         status='not_needed' if not items else 'local_candidates' if any(item['candidates'] for item in items) else 'llm_unavailable' if any(item['status']=='llm_unavailable' for item in items) else 'unmatched'
-        outputs[uid]={'fingerprint':fingerprint(source,english),'mentions':items,'method':'automatic transliteration lookup when needed + catalogue spelling/sound retrieval + constrained LLM','status':status}
+        outputs[uid]={**contextual[uid],'context_status':contextual[uid]['status'],
+                     'fingerprint':fingerprint(source,english),'mentions':items,
+                     'method':'Complete consultation LLM entity identification + catalogue-only spelling verification','status':status}
     if not jobs:return outputs
-    # One automatic batch per translation pass, bounded to avoid oversized prompts.
-    # No global cache of patient text: persisted results are reused on context reads.
-    for offset in range(0,len(jobs),12):
-        batch=jobs[offset:offset+12]
-        try:
-            parsed=get_gateway().chat_json(task_type='medicine_matching',actor=Actor(actor_id='translator-agent',role='translator'),
-                patient_ref=patient_ref,patient_context=patient_context or {},temperature=0,max_tokens=1400,
-                messages=[{'role':'system','content':RERANK_PROMPT},{'role':'user','content':json.dumps({'mentions':batch},ensure_ascii=False)}])
-            matches=parsed.get('matches',[])
-            if not isinstance(matches,list):raise ValueError('Invalid medicine result')
-            by_id={};duplicates=set();batch_ids={j['mention_id'] for j in batch}
-            for match in matches:
-                if not isinstance(match,dict):continue
-                mid=match.get('mention_id')
-                if not isinstance(mid,str) or mid not in batch_ids:continue
-                if mid in by_id:duplicates.add(mid)
-                by_id[mid]=match
-            for output in outputs.values():
-                for item in output['mentions']:
-                    if item['mention_id'] not in batch_ids:continue
-                    answer=by_id.get(item['mention_id'],{})
-                    selected=answer.get('catalog_id')
-                    permitted={c['catalog_id'] for c in item['candidates']}
-                    if item['mention_id'] not in duplicates and answer.get('medicine_context') is True and isinstance(selected,str) and selected in permitted:
-                        item.update(selected_catalog_id=selected,status='exact_preserved' if item['exact'] else 'suggested',usage=answer.get('usage') if answer.get('usage') in {'prescribed','reported','allergy','stopped'} else 'uncertain')
-                    else:item['status']='uncertain'
-                    output['status']='complete'
-        except Exception:
-            for output in outputs.values():
-                for item in output['mentions']:
-                    if item['mention_id'] in {j['mention_id'] for j in batch}:
-                        item.update(status='llm_unavailable',selected_catalog_id=None,usage='uncertain');output['status']='llm_unavailable'
+    # Every candidate is checked against the same complete consultation. Do not
+    # chop away other speakers or distant context for this clinically vital step.
+    batch = jobs
+    try:
+        parsed=get_gateway().chat_json(task_type='medicine_matching',actor=Actor(actor_id='translator-agent',role='translator'),
+            patient_ref=patient_ref,patient_context=patient_context or {},temperature=0,max_tokens=6000,
+            messages=[{'role':'system','content':RERANK_PROMPT},{'role':'user','content':json.dumps({'conversation':conversation,'mentions':batch},ensure_ascii=False)}])
+        matches=parsed.get('matches',[])
+        if not isinstance(matches,list):raise ValueError('Invalid medicine result')
+        by_id={};duplicates=set();batch_ids={j['mention_id'] for j in batch}
+        for match in matches:
+            if not isinstance(match,dict):continue
+            mid=match.get('mention_id')
+            if not isinstance(mid,str) or mid not in batch_ids:continue
+            if mid in by_id:duplicates.add(mid)
+            by_id[mid]=match
+        for output in outputs.values():
+            for item in output['mentions']:
+                if item['mention_id'] not in batch_ids:continue
+                answer=by_id.get(item['mention_id'],{})
+                selected=answer.get('catalog_id')
+                permitted={c['catalog_id'] for c in item['candidates']}
+                if item['mention_id'] not in duplicates and answer.get('medicine_context') is True and isinstance(selected,str) and selected in permitted:
+                    item.update(selected_catalog_id=selected,status='exact_preserved' if item['exact'] else 'suggested',usage=answer.get('usage') if answer.get('usage') in {'prescribed','reported','allergy','stopped'} else 'uncertain')
+                else:item['status']='uncertain'
+                output['status']='complete'
+    except Exception:
+        for output in outputs.values():
+            for item in output['mentions']:
+                if item['mention_id'] in {j['mention_id'] for j in batch}:
+                    item.update(status='llm_unavailable',selected_catalog_id=None,usage='uncertain');output['status']='llm_unavailable'
     return outputs
