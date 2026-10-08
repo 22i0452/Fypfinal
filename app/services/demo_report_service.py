@@ -7,6 +7,7 @@ import math
 import hashlib
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -16,6 +17,35 @@ import uuid
 from app.testing.catalog import PACK_VERSION, catalog
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def runner_diagnostics(code, stderr='', event=None):
+    """Expose bounded exception identifiers, never raw provider logs or secrets."""
+    event=event or {}
+    result={'exit_code':code}
+    error_type=event.get('error_type','')
+    if re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,63}',str(error_type)):
+        result['error_type']=error_type
+    module=event.get('missing_module')
+    if not module:
+        match=re.search(r"ModuleNotFoundError: No module named '([A-Za-z0-9_.]{1,120})'",stderr)
+        module=match.group(1) if match else None
+    if module and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_.]{0,119}',str(module)):
+        result.update(error_type='ModuleNotFoundError',missing_module=module)
+    if code is not None and code<0:result['signal']=-code
+    return result
+
+
+def runner_failure_message(diagnostics):
+    module=diagnostics.get('missing_module')
+    if module:
+        return (f"Test runner cannot import '{module}'. Install the app dependencies with "
+                'python -m pip install -r requirements.txt, then restart the app and run a new report. '
+                'Completed results are retained.')
+    code=diagnostics.get('exit_code')
+    suffix=f' (exit code {code})' if code is not None else ''
+    return ('Test runner exited before all scenarios finished'+suffix+
+            '. Completed results are retained. Inspect Run details for the startup diagnostic.')
 
 
 def now():
@@ -154,12 +184,13 @@ class DemoReportService:
             else:raise ValueError('Unknown event')
             self._write(db,report)
 
-    def _finish(self,run_id,owner_id,status,reason=None):
+    def _finish(self,run_id,owner_id,status,reason=None,diagnostics=None):
         with self.database.connection() as db:
             db.execute('BEGIN IMMEDIATE')
             row=db.execute('SELECT payload FROM demo_test_reports WHERE run_id=? AND owner_id=?',(run_id,owner_id)).fetchone()
             report=json.loads(row[0])
             if report['status']!='RUNNING':return report
+            if diagnostics is not None:report['runner_diagnostics']=diagnostics
             self._end(report,status,reason);self._write(db,report)
         return report
 
@@ -167,6 +198,10 @@ class DemoReportService:
         # Do not forward arbitrary environment variables, live DB paths,
         # credentials or service tokens to the child. dotenv is disabled there.
         env={key:os.environ[key] for key in ('PATH','SYSTEMROOT','WINDIR','LD_LIBRARY_PATH','LANG','LC_ALL','PYTHONPATH') if key in os.environ}
+        # Launchers can add package directories to sys.path without setting
+        # PYTHONPATH. Reuse the running app's imports, never its credentials.
+        env['PYTHONPATH']=os.pathsep.join(dict.fromkeys(
+            str(Path(path or ROOT).resolve()) for path in sys.path if isinstance(path,str)))
         env.update(PYTHONUNBUFFERED='1',PYTHON_DOTENV_DISABLED='1',TMPDIR=str(root))
         if mode=='live_text':
             env['OPENROUTER_API_KEY']=self.settings.openrouter_api_key
@@ -174,15 +209,27 @@ class DemoReportService:
         return env
 
     def _run(self,run_id,owner_id,mode):
-        process=None;timer=None;timed_out=threading.Event()
+        process=None;timer=None;stderr_thread=None;timed_out=threading.Event()
+        stderr_tail=bytearray();startup_error=None
         temporary=tempfile.TemporaryDirectory(prefix='medflow-qa-')
         try:
             directory=temporary.name
             root=Path(directory)
             if self.get(run_id,owner_id)['status']!='RUNNING':return
             process=subprocess.Popen([sys.executable,'-m','app.testing.worker',mode,str(root)],cwd=ROOT,
-                env=self._environment(root,mode),stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,
+                env=self._environment(root,mode),stdout=subprocess.PIPE,stderr=subprocess.PIPE,
                 text=True,encoding='utf-8')
+            # Drain both pipes to avoid deadlock; retain only a small log tail.
+            # Raw logs are never stored in reports or exposed to the browser.
+            def drain_stderr():
+                stream=getattr(process,'stderr',None)
+                if stream is None:return
+                while True:
+                    chunk=stream.read(4096)
+                    if not chunk:break
+                    stderr_tail.extend(chunk.encode('utf-8',errors='replace'))
+                    del stderr_tail[:-16384]
+            stderr_thread=threading.Thread(target=drain_stderr,daemon=True);stderr_thread.start()
             with self._lock:self._processes[run_id]=process
             if self.get(run_id,owner_id)['status']!='RUNNING':process.terminate()
             def timeout():
@@ -198,23 +245,29 @@ class DemoReportService:
                 if not line.startswith('MEDFLOW_QA_EVENT '):continue
                 event=json.loads(line[len('MEDFLOW_QA_EVENT '):])
                 if event['type']=='finished':finished=True
+                elif event['type']=='runner_error':startup_error=event
                 else:self._event(run_id,owner_id,event)
             code=process.wait(timeout=5)
+            stderr_thread.join(timeout=1)
+            diagnostic=runner_diagnostics(code,stderr_tail.decode('utf-8',errors='replace'),startup_error)
             report=self.get(run_id,owner_id)
             if report['status']=='RUNNING':
                 if timed_out.is_set():self._finish(run_id,owner_id,'ERROR','Test runner reached its time limit. Unfinished cases were not counted as passes.')
-                elif code!=0 or not finished or any(row['status'] in {'PENDING','RUNNING'} for row in report['cases']):
-                    self._finish(run_id,owner_id,'ERROR','Test runner exited before all scenarios finished. Completed results are retained.')
+                elif startup_error or code!=0 or not finished or any(row['status'] in {'PENDING','RUNNING'} for row in report['cases']):
+                    self._finish(run_id,owner_id,'ERROR',runner_failure_message(diagnostic),diagnostic)
                 else:
                     status='ERROR' if any(row['status']=='ERROR' for row in report['cases']) else 'FAILED' if any(row['status']=='FAILED' for row in report['cases']) else 'PASSED'
                     self._finish(run_id,owner_id,status)
-        except Exception:
-            self._finish(run_id,owner_id,'ERROR','Test runner could not finish. Check app dependencies and retry; completed results are retained.')
+        except Exception as exc:
+            diagnostic=runner_diagnostics(None,event={'error_type':type(exc).__name__})
+            self._finish(run_id,owner_id,'ERROR','Test runner could not finish. Check app dependencies and retry; completed results are retained.',diagnostic)
         finally:
             if timer:timer.cancel()
             if process:
                 if process.poll() is None:process.kill()
                 process.wait(timeout=5);process.stdout.close()
+                if stderr_thread:stderr_thread.join(timeout=1)
+                if getattr(process,'stderr',None):process.stderr.close()
             with self._lock:self._processes.pop(run_id,None)
             temporary.cleanup()
 

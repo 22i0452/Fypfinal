@@ -1,6 +1,6 @@
 """Fixed scenario runner. Only launched in a disposable, separate process.
 
-stdout contains a prefixed event protocol; library logs go to discarded stderr.
+stdout contains a prefixed event protocol; library logs go to bounded stderr.
 Synthetic runs block outbound sockets and never inherit provider credentials.
 """
 from __future__ import annotations
@@ -308,7 +308,14 @@ def main():
     mode=sys.argv[1];root=Path(sys.argv[2]).resolve()
     if mode not in {'synthetic','live_text'}:raise ValueError('Unsupported mode')
     with contextlib.redirect_stdout(sys.stderr):
-        bootstrap(root,mode)
+        try:
+            bootstrap(root,mode)
+        except Exception as exc:
+            # Startup failures happen before assertions. Exception messages can
+            # contain credentials, so emit identifiers only.
+            emit({'type':'runner_error','error_type':type(exc).__name__,
+                  'missing_module':exc.name if isinstance(exc,ModuleNotFoundError) else None})
+            return 1
         for index,scenario in enumerate(catalog(mode)):
             emit({'type':'case_started','id':scenario['id']})
             probe=Probe();started=time.perf_counter();status='ERROR';error=None
@@ -323,6 +330,7 @@ def main():
             emit({'type':'case_finished','id':scenario['id'],'status':status,'checks':probe.checks,
                   'steps':probe.steps,'duration_ms':round((time.perf_counter()-started)*1000,2),'error':error})
         emit({'type':'finished'})
+    return 0
 
 
-if __name__=='__main__':main()
+if __name__=='__main__':sys.exit(main())

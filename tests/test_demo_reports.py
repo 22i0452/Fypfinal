@@ -1,7 +1,10 @@
 """Report ownership, isolation, truthful failures and the actual scenario process."""
 import json
 import os
+import io
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -10,7 +13,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from app.main import create_app
-from app.services.demo_report_service import DemoReportError
+from app.services.demo_report_service import DemoReportError, runner_diagnostics
 from tests.test_central_app_auth import _settings
 
 
@@ -128,6 +131,44 @@ class DemoReportTests(unittest.TestCase):
         self.assertNotIn('OPENROUTER_API_KEY',env);self.assertNotIn('MEDFLOW_DATABASE_PATH',env)
         self.assertNotIn('MEDFLOW_RECEPTIONIST_SERVICE_TOKEN',env);self.assertNotIn('HOME',env)
         self.assertEqual(env['PYTHON_DOTENV_DISABLED'],'1')
+    def test_child_retains_launcher_added_dependencies_without_pythonpath(self):
+        dependency=self.root/'launcher-packages';dependency.mkdir()
+        (dependency/'qa_launcher_probe.py').write_text('VALUE = 23\n')
+        with patch.object(sys,'path',[str(dependency),*sys.path]),patch.dict(os.environ,{'PYTHONPATH':'','OPENROUTER_API_KEY':'do-not-forward'}):
+            env=self.s._environment(self.root,'synthetic')
+            result=subprocess.run([sys.executable,'-c','import qa_launcher_probe; print(qa_launcher_probe.VALUE)'],
+                env=env,capture_output=True,text=True,timeout=10)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(result.stdout.strip(),'23')
+        self.assertNotIn('OPENROUTER_API_KEY',env)
+    def test_startup_failure_reports_missing_dependency_without_raw_logs(self):
+        class Process:
+            stdout=io.StringIO('')
+            stderr=io.StringIO("secret-provider-value\nModuleNotFoundError: No module named 'httpx'\n")
+            def poll(self):return 1
+            def wait(self,timeout=None):return 1
+        with patch('app.services.demo_report_service.subprocess.Popen',return_value=Process()):
+            report=self.s.start(self.user.user_id,'synthetic')
+            for thread in list(self.s._threads):thread.join(5)
+        result=self.s.get(report['run_id'],self.user.user_id)
+        self.assertEqual(result['status'],'ERROR')
+        self.assertEqual(result['totals']['passed'],0)
+        self.assertEqual(result['totals']['skipped'],16)
+        self.assertEqual(result['runner_diagnostics']['missing_module'],'httpx')
+        self.assertIn('requirements.txt',result['message'])
+        self.assertNotIn('secret-provider-value',json.dumps(result))
+    def test_bootstrap_emits_safe_diagnostic_before_any_scenario(self):
+        from app.testing.worker import main, PREFIX
+        out=io.StringIO()
+        missing=ModuleNotFoundError('sensitive-url-and-key',name='dotenv')
+        with patch.object(sys,'argv',['worker','synthetic',str(self.root)]),patch.object(sys,'__stdout__',out),patch('app.testing.worker.bootstrap',side_effect=missing):
+            self.assertEqual(main(),1)
+        event=json.loads(out.getvalue().removeprefix(PREFIX))
+        self.assertEqual(event,{'type':'runner_error','error_type':'ModuleNotFoundError','missing_module':'dotenv'})
+        self.assertNotIn('sensitive',out.getvalue())
+    def test_diagnostics_reject_arbitrary_text_and_explain_signal(self):
+        diagnostic=runner_diagnostics(-9,'secret-token',{'error_type':'RuntimeError: secret','missing_module':'url?key=secret'})
+        self.assertEqual(diagnostic,{'exit_code':-9,'signal':9})
     def test_live_text_requires_actual_provider_response_and_does_not_score_fallback(self):
         from app.testing.worker import run_live, Probe
         with patch.dict(os.environ,{'OPENROUTER_API_KEY':'synthetic-provider-key'}):
