@@ -199,9 +199,12 @@ class DemoReportService:
         # credentials or service tokens to the child. dotenv is disabled there.
         env={key:os.environ[key] for key in ('PATH','SYSTEMROOT','WINDIR','LD_LIBRARY_PATH','LANG','LC_ALL','PYTHONPATH') if key in os.environ}
         # Launchers can add package directories to sys.path without setting
-        # PYTHONPATH. Reuse the running app's imports, never its credentials.
+        # PYTHONPATH. Preserve import paths, never arbitrary environment secrets.
+        package_paths=[str(Path(path or ROOT).resolve())
+                       for path in sys.path if isinstance(path,str)]
+        inherited_paths=[entry for entry in env.get('PYTHONPATH','').split(os.pathsep) if entry]
         env['PYTHONPATH']=os.pathsep.join(dict.fromkeys(
-            str(Path(path or ROOT).resolve()) for path in sys.path if isinstance(path,str)))
+            [*inherited_paths,*package_paths]))
         env.update(PYTHONUNBUFFERED='1',PYTHON_DOTENV_DISABLED='1',TMPDIR=str(root))
         if mode=='live_text':
             env['OPENROUTER_API_KEY']=self.settings.openrouter_api_key

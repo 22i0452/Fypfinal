@@ -35,8 +35,12 @@ await p.waitForTimeout(300);await p.screenshot({path:shots+'/login.png',fullPage
 
 
 
- await p.evaluate(()=>{window.qaAudio=new AudioContext();const oscillator=qaAudio.createOscillator(),destination=qaAudio.createMediaStreamDestination();oscillator.connect(destination);oscillator.start();navigator.mediaDevices.getUserMedia=async()=>destination.stream;});
- await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>isRecording);await p.waitForTimeout(1800);await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>visitStage==='transcript' && !isProcessing);await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>visitStage==='review' && !!soapLastSavedNoteId && !visitActionBusy);
+ await p.evaluate(async()=>{window.qaAudio=new AudioContext();if(qaAudio.state==='suspended')await qaAudio.resume();const destination=qaAudio.createMediaStreamDestination();navigator.mediaDevices.getUserMedia=async()=>destination.stream;});
+ await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>isRecording);
+ // Keep the real start/stop UI and WebSocket path, but inject fixed PCM. Headless
+ // Chromium may throttle its audio renderer below the server's one-second floor.
+ await p.evaluate(async()=>{const rate=captureSampleRate,samples=new Int16Array(Math.ceil(rate*2));for(let i=0;i<samples.length;i++)samples[i]=Math.round(Math.sin(2*Math.PI*440*i/rate)*6000);ws.send(samples.buffer);await new Promise(resolve=>{const poll=()=>ws.bufferedAmount===0?resolve():setTimeout(poll,10);poll();});});
+ await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>visitStage==='transcript' && !isProcessing);await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>visitStage==='review' && !!soapLastSavedNoteId && !visitActionBusy);
  const ids=await p.evaluate(()=>({note:soapLastSavedNoteId,workflow:activeWorkflow.workflow_id,encounter:activeEncounter.encounter_id}));
  const saved=await (await ctx.request.get('http://127.0.0.1:8765/api/notes/'+ids.note)).json();
  let mutations=0;p.on('request',request=>{if(request.url().includes('/api/')&&request.method()!=='GET')mutations++;});
