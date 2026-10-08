@@ -20,18 +20,6 @@ author = "agent"
 task = "workflow.run"
 args = "artifacts/medflow-clinical-studio: web"
 
-[[workflows.workflow]]
-name = "Run MedFlow"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
-waitForPort = 8000
-
-[workflows.workflow.metadata]
-outputType = "webview"
-
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
