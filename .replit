@@ -28,3 +28,12 @@ expertMode = true
 [nix]
 channel = "stable-25_05"
 packages = ["freetype", "lcms2", "libimagequant", "libjpeg", "libsndfile", "libtiff", "libwebp", "libxcrypt", "openjpeg", "portaudio", "tcl", "tk", "zlib"]
+
+[userenv]
+
+[userenv.development]
+APP_ENV = "demo"
+DEMO_PROFILES_ENABLED = "true"
+MOCK_OTP_ENABLED = "false"
+SHOW_DEV_OTP = "false"
+STORAGE_BACKEND = "postgres"
