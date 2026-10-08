@@ -1,5 +1,7 @@
 # MedFlowAI — Clinic Agent Platform
 
+**Demo testing report (Batch 5):** open **Demo testing** in the doctor workspace or the home footer, then run 16 repeatable fictional scenarios. No supplied dataset or provider credits are needed in synthetic mode. Results include actual assertions/timings, history, cancellation and JSON export. Optional live text checks use the existing OpenRouter key and require explicit opt-in. See [PROCESS_STUDIO.md](PROCESS_STUDIO.md) for setup and limits.
+
 **Connected product (Batches 2–4):** the public home at `/` opens AI Receptionist and Doctor Workspace. Saved SOAP has a visible **ICD-10 / CPT** action; code suggestions link to their exact SOAP version and original conversation. Patient Portal is marked **Coming soon**. See [PROCESS_STUDIO.md](PROCESS_STUDIO.md) and [VALIDATION.md](VALIDATION.md) for setup and measured checks.
 
 **Process and voice refinement:** see [PROCESS_STUDIO.md](PROCESS_STUDIO.md) for separate agent workspaces, actual stage events, source inspection, role correction, voice recovery and Replit update instructions.

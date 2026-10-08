@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Medflow — Demo testing</title><link rel="icon" href="/branding/icon">
+  <link rel="stylesheet" href="/assets/home.css?v=20261008-testing"><link rel="stylesheet" href="/assets/testing.css?v=20261008-testing">
+  <script defer src="/assets/vendor/lucide.min.js"></script><script defer src="/assets/testing.js?v=20261008-testing"></script>
+</head>
+<body>
+  <a class="skip-link" href="#scenarioList">Inspect scenarios</a>
+  <header class="home-header testing-header">
+    <a class="home-brand" href="/" aria-label="Medflow home"><span class="brand-symbol"><i data-lucide="audio-lines" aria-hidden="true"></i></span><span>medflow<small>DEMO TESTING</small></span></a>
+    <a class="home-account" href="/workspace"><i data-lucide="stethoscope" aria-hidden="true"></i><span>Doctor workspace</span><i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
+  </header>
+  <main class="testing-main">
+    <section class="testing-intro">
+      <div><p class="home-eyebrow">A RECORD OF WHAT WORKED.</p><h1>Proof, <em>in view.</em></h1><p class="testing-lede">Repeat the journey. Inspect the outcome.<br>Every result has an expected answer and a measured check.</p></div>
+      <div class="testing-scope"><i data-lucide="flask-conical" aria-hidden="true"></i><span>Fictional scenarios<small>Separate process. Isolated clinic.</small></span></div>
+    </section>
+    <section class="testing-controls" aria-label="Run controls">
+      <label class="test-mode-label"><span>Test mode</span><select id="testMode"><option value="synthetic">Synthetic workflow</option><option value="live_text" disabled>Live text · setup required</option></select></label>
+      <div class="test-mode-note" id="testModeNote">No dataset or API credits required.</div>
+      <button class="test-button primary" id="runTests" disabled><i data-lucide="play" aria-hidden="true"></i><span>Run checks</span></button>
+      <button class="test-button" id="retryTests" hidden><i data-lucide="refresh-cw" aria-hidden="true"></i><span>Retry connection</span></button>
+      <button class="test-button" id="stopTests" hidden><i data-lucide="square" aria-hidden="true"></i><span>Stop run</span></button>
+    </section>
+    <label class="live-test-consent" id="liveTestConsent" hidden><input id="confirmLive" type="checkbox"><span>Use the existing OpenRouter key for three fictional text checks. Real provider requests may use credits; no microphone or real patient data is sent.</span></label>
+    <div class="test-message" id="testMessage" role="status" aria-live="polite"></div>
+    <section class="test-stats" aria-label="Run totals">
+      <article><i data-lucide="check-check" aria-hidden="true"></i><span>Passed</span><strong id="testPassed">—</strong></article>
+      <article><i data-lucide="circle-alert" aria-hidden="true"></i><span>Failed / errors</span><strong id="testFailed">—</strong></article>
+      <article><i data-lucide="circle-minus" aria-hidden="true"></i><span>Not evaluated</span><strong id="testSkipped">—</strong></article>
+      <article><i data-lucide="timer" aria-hidden="true"></i><span>Measured time</span><strong id="testElapsed">—</strong></article>
+    </section>
+    <section class="test-run-receipt" aria-label="Run receipt">
+      <span id="testRunStatus" class="test-status">Not run</span><span id="testRunScope">Synthetic timings are not real provider speed.</span>
+      <div class="test-progress" role="progressbar" id="testProgress" aria-label="Scenarios completed" aria-valuemin="0" aria-valuemax="16" aria-valuenow="0"><span></span></div>
+      <span id="testProgressLabel">Ready to run</span>
+    </section>
+    <section class="test-toolbar" aria-label="Report filters">
+      <label><span>Saved runs</span><select id="testHistory"><option value="">New run</option></select></label>
+      <label><span>Show</span><select id="testFilter"><option value="all">All scenarios</option><option value="attention">Failures / errors</option><option value="passed">Passed</option><option value="unevaluated">Not evaluated</option></select></label>
+      <button class="test-button" id="exportTests" disabled><i data-lucide="download" aria-hidden="true"></i><span>Export JSON</span></button>
+    </section>
+    <section class="test-workbench">
+      <div class="test-scenarios"><div class="test-section-heading"><h2>The scenario pack</h2><span id="testPackVersion">Loading…</span></div><div id="scenarioList" aria-label="Test scenarios"></div></div>
+      <article class="test-detail" id="testDetail" aria-label="Scenario inspection"><div class="test-empty"><i data-lucide="scan-line" aria-hidden="true"></i><h2>Inspect the evidence.</h2><p>Choose a scenario to see its input, expected outcome and actual checks.</p></div></article>
+    </section>
+    <details class="test-methodology"><summary><i data-lucide="book-open" aria-hidden="true"></i>What this report establishes</summary><p>Synthetic runs use authored inputs and controlled provider responses against the real booking, persistence, revision and authorization logic. The report records application checks, not clinical accuracy. Live text checks use the real provider and a small factual checklist, without speech input.</p><div id="testUnassessed"></div><p>Stopped, interrupted and unexecuted scenarios remain labelled. No results are generated until a run actually executes. Reports belong to your signed-in account; the most recent 50 are retained.</p></details>
+  </main>
+  <footer class="home-footer"><a href="/">Back to Medflow</a><span>Traceable results. Clear limits.</span></footer>
+</body>
+</html>

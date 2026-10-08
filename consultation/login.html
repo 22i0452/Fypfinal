@@ -162,7 +162,8 @@
           document.getElementById("loginSubmit"),
           "Signing in..."
         );
-        window.location.assign("/workspace");
+        const requestedNext = new URLSearchParams(window.location.search).get('next');
+        window.location.assign(requestedNext === '/testing' ? '/testing' : '/workspace');
       } catch (error) {
         showMessage(error.message || "Unable to sign in.", "error");
       }

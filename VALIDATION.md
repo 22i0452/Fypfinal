@@ -121,4 +121,24 @@ python -m unittest tests.test_product_coding -q
 QA_CHROMIUM_PATH=/path/to/chromium node tests/test_product_browser.cjs
 ```
 
-The product browser fixture uses a temporary database and explicitly synthetic code candidates. Its provider delay/failure/feature controls exist only in tests. It shares localhost:8765 with guided/evidence tests, so run those sequentially. These checks establish workflow and source integrity; they do not measure live ASR, physical microphone quality, paid-provider speed, clinical or coding accuracy, calibrated confidence or catalog validity. Batch 5's user-facing repeatable demo report is not included.
+The product browser fixture uses a temporary database and explicitly synthetic code candidates. Its provider delay/failure/feature controls exist only in tests. It shares localhost:8765 with guided/evidence tests, so run those sequentially. These checks establish workflow and source integrity; they do not measure live ASR, physical microphone quality, paid-provider speed, clinical or coding accuracy, calibrated confidence or catalog validity. Batch 5 below adds the user-facing repeatable demo report.
+
+
+## Demo testing report — Batch 5 (8 October 2026)
+
+The actual isolated worker passed all **16 built-in synthetic scenarios**. Latest Python discovery produced **192 results: 189 passed, three existing native PortAudio import errors, zero assertion failures**. The blocked legacy audio modules remain listed above; this is not a fully passing discovery suite. Thirteen new report tests cover the real child process and measured assertions, unchanged saved working-clinic sentinel/notes/appointments, report ownership and export, fixed inputs, cross-site request rejection, explicit live acknowledgement, transactional run exclusion, cancellation/late events, rejection of unmeasured success, restart recovery, launch failure, timeout, restricted child environment, 50-report history, disabled setup, and live text/ SOAP paths with mocked provider responses. Existing evidence/voice Node tests: **22 passed**. Full-suite TTS warmup was suppressed; no actual paid provider evaluation was performed.
+
+The report Chromium journey passed with zero page JavaScript errors: home entrance, login return to `/testing`, initial Not run state, the real sixteen-case worker, refresh during a run, measured expected/actual inspection, JSON download, cancellation/unexecuted cases, restored history, doctor-workspace navigation and configuration-outage retry. Report/source layouts fit 1440/1280/390 pixel widths without horizontal overflow. Failure presentation was separately checked with an explicitly synthetic browser transport fixture; production reports do not inject that fixture. Existing patient list data remained unchanged apart from the legacy list import's pre-existing `updated_at` refresh; the Python isolation check independently compares an actual saved clinic sentinel without that read-side effect.
+
+The existing combined product browser journey also passed, preserving guided capture, consent, coding/version evidence, approval, summary/completion and receptionist/home guards. Compilation, changed JavaScript syntax and whitespace checks passed.
+
+Reproduce with app dependencies plus Playwright/Chromium:
+
+```sh
+python -m unittest tests.test_demo_reports -q
+node --test tests/test_evidence_ui.cjs tests/test_voice_engine.cjs
+QA_CHROMIUM_PATH=/path/to/chromium node tests/test_demo_report_browser.cjs
+QA_CHROMIUM_PATH=/path/to/chromium node tests/test_product_browser.cjs
+```
+
+Browser scripts share localhost:8765 and must run sequentially. The test pack establishes application behaviour under authored inputs and controlled provider outputs. Live checks were validated with mock responses only in development QA; actual provider output/speed, microphone speech quality and clinical correctness remain unmeasured. The report displays that distinction and never fabricates accuracy/confidence.
