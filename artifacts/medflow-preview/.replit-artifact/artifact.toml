@@ -15,7 +15,6 @@ localPort = 20788
 run = "pnpm --filter @workspace/medflow-preview run dev"
 
 [services.production]
-build = ["python", "-m", "pip", "install", "-r", "requirements-deploy.txt"]
 run = ["python", "scripts/run_demo.py", "--published"]
 
 [services.env]

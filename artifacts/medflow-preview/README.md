@@ -11,4 +11,6 @@ The project Run group starts both required workflows.
 
 Production uses the existing `scripts/run_demo.py --published` entry point
 directly, not the development proxy or scaffolded React build. Existing
-published-mode validation and requirements remain in effect.
+published-mode validation and requirements remain in effect. Replit installs
+Python packages from the root `requirements.txt`; production build commands
+must not run `python -m pip install` in the immutable Nix environment.

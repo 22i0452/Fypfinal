@@ -3,7 +3,6 @@ modules = ["nodejs-24", "python-3.12", "postgresql-16"]
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
-build = ["python", "-m", "pip", "install", "-r", "requirements-deploy.txt"]
 run = ["python", "scripts/run_demo.py", "--published"]
 
 [workflows]

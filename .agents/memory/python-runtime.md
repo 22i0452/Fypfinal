@@ -3,11 +3,11 @@ name: Replit Python dependency installs
 description: The base Nix Python may not support project package installation; use a managed runtime instead.
 ---
 
-When Python package installation fails because the base Nix Python is immutable or lacks pip, install a Replit-managed Python runtime and then install the project requirements with the package manager.
+For workspace package development, use a Replit-managed Python runtime rather than trying to install into the immutable base Nix Python. For publishing, let Replit's package setup install dependencies from `requirements.txt`; do not add direct `python -m pip install` commands to `.replit` build hooks or artifact production builds.
 
-**Why:** the preinstalled Python 3.13 could not install packages, while the managed Python 3.12 runtime worked.
+**Why:** the base Python install is immutable, and a publish build failed with PEP 668 after explicit pip install commands duplicated Replit's automatic requirements installation.
 
-**How to apply:** check the active Python before installing dependencies; if it is the immutable base runtime, use an available managed Python module first.
+**How to apply:** check how dependencies are installed in the active environment. Use managed Python/package tooling for development installs, and keep production build steps free of redundant `pip install` commands.
 
 ## Replit package installer side effects
 After `installLanguagePackages`, inspect the dependency file before keeping its changes. The installer can append requested packages even when equivalent, constrained entries already exist, creating duplicate requirements.
