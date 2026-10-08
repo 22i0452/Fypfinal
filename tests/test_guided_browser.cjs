@@ -19,7 +19,7 @@ const deadline=setTimeout(()=>{console.error('Browser validation timed out');pro
  console.log('READ ONLY OPEN',await p.evaluate(()=>({workflow:activeWorkflow,encounter:activeEncounter,stage:visitStage})));
  await p.waitForTimeout(300);await p.screenshot({path:shots+'/prepare.png',fullPage:true});
  await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>activeWorkflow?.state==='PATIENT_UNVERIFIED');
- await p.locator('#visitNextBtn').click();await p.locator('#verificationDialog').waitFor({state:'visible'});await p.locator('#patientOtpInput').fill('123456');await p.locator('#verificationDialog').getByRole('button',{name:'Verify patient',exact:true}).click();await p.waitForFunction(()=>activeWorkflow?.state==='BOOKING_REQUIRED');
+ await p.locator('#visitNextBtn').click();await p.getByRole('button',{name:'Use phone OTP instead',exact:true}).click();await p.locator('#verificationDialog').waitFor({state:'visible'});await p.locator('#patientOtpInput').fill('123456');await p.locator('#verificationDialog').getByRole('button',{name:'Verify patient',exact:true}).click();await p.waitForFunction(()=>activeWorkflow?.state==='BOOKING_REQUIRED');
  await p.locator('#visitNextBtn').click();await p.locator('#bookingDialog').waitFor({state:'visible'});
  console.log('BOOKING FIELDS',await p.locator('#bookingDoctor').innerText());
  await p.getByRole('button',{name:'Find slots',exact:true}).click();await p.waitForFunction(()=>document.getElementById('bookingSlot').options.length>1);
@@ -75,7 +75,7 @@ const deadline=setTimeout(()=>{console.error('Browser validation timed out');pro
  // Existing automatic path remains available, persisted locally, and uses the same backend.
  await p.evaluate(()=>openPatientVisit(allPatients[1]));await p.waitForFunction(()=>!visitLoading);
  await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>activeWorkflow?.state==='PATIENT_UNVERIFIED');
- await p.locator('#visitNextBtn').click();await p.locator('#patientOtpInput').fill('123456');await p.locator('#verificationDialog').getByRole('button',{name:'Verify patient',exact:true}).click();await p.waitForFunction(()=>activeWorkflow?.state==='BOOKING_REQUIRED');
+ await p.locator('#visitNextBtn').click();await p.getByRole('button',{name:'Use phone OTP instead',exact:true}).click();await p.locator('#patientOtpInput').fill('123456');await p.locator('#verificationDialog').getByRole('button',{name:'Verify patient',exact:true}).click();await p.waitForFunction(()=>activeWorkflow?.state==='BOOKING_REQUIRED');
  await p.locator('#visitNextBtn').click();await p.getByRole('button',{name:'Find slots',exact:true}).click();await p.waitForFunction(()=>document.getElementById('bookingSlot').options.length>1);await p.locator('#bookingSlot').selectOption({index:1});await p.getByRole('button',{name:'Confirm appointment',exact:true}).click();await p.waitForFunction(()=>activeWorkflow?.state==='BOOKING_CONFIRMED');
  await p.locator('#visitNextBtn').click();for(const id of ['consentRecording','consentTranscription','consentDocumentation'])await p.locator('#'+id).check();await p.getByRole('button',{name:'Save choices',exact:true}).click();await p.waitForFunction(()=>hasRequiredConsent());await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>visitStage==='capture');
  await p.locator('#automaticSoapToggle').check();await p.locator('#automaticSoapToggle').uncheck();assert.equal(await p.evaluate(()=>window.medflowAutomaticSoap),false);

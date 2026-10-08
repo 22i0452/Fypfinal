@@ -106,7 +106,9 @@ let server,browser;
  // Opt-in automatic interruption with synthetic signal (physical echo remains unmeasured).
  await p.locator('#autoInterruptOption').evaluate(el=>el.open=true);await p.locator('#autoInterruptToggle').check();
  await config({tts_seconds:5,text:'22'});await p.locator('#liveVoiceRepeat').click();await p.waitForFunction(()=>liveConversation.controller.phase==='speaking');
- await pulse(400);await p.waitForFunction(()=>!state.demoBusy && liveConversation.controller.phase==='capturing');await config({tts_seconds:.25});
+ // Wait for observed AudioWorklet onset instead of assuming a wall-clock pulse
+ // delivered enough frames on a busy browser. The interruption still uses real capture.
+ await p.evaluate(()=>qaSignal.gain.gain.value=.09);try{await p.waitForFunction(()=>!state.demoBusy && liveConversation.controller.phase==='capturing',null,{timeout:2000});}finally{await p.evaluate(()=>qaSignal.gain.gain.value=0);}await config({tts_seconds:.25});
  await p.waitForFunction(()=>!state.demoBusy && agentArtifact.pending?.key==='age');await p.locator('#autoInterruptToggle').uncheck();
  // Uncertain transcript preserves accepted history and pauses.
  const valuesBefore=await p.evaluate(()=>JSON.stringify(agentArtifact.values));await config({text:'مریض اردو رسم خط میں لکھیں جیسے 3 بجے۔'});

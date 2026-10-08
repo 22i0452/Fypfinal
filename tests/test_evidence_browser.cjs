@@ -19,7 +19,7 @@ const deadline=setTimeout(()=>{console.error('Browser validation timed out');pro
  console.log('READ ONLY OPEN',await p.evaluate(()=>({workflow:activeWorkflow,encounter:activeEncounter,stage:visitStage})));
  await p.waitForTimeout(300);await p.screenshot({path:shots+'/prepare.png',fullPage:true});
  await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>activeWorkflow?.state==='PATIENT_UNVERIFIED');
- await p.locator('#visitNextBtn').click();await p.locator('#verificationDialog').waitFor({state:'visible'});await p.locator('#patientOtpInput').fill('123456');await p.locator('#verificationDialog').getByRole('button',{name:'Verify patient',exact:true}).click();await p.waitForFunction(()=>activeWorkflow?.state==='BOOKING_REQUIRED');
+ await p.locator('#visitNextBtn').click();await p.getByRole('button',{name:'Use phone OTP instead',exact:true}).click();await p.locator('#verificationDialog').waitFor({state:'visible'});await p.locator('#patientOtpInput').fill('123456');await p.locator('#verificationDialog').getByRole('button',{name:'Verify patient',exact:true}).click();await p.waitForFunction(()=>activeWorkflow?.state==='BOOKING_REQUIRED');
  await p.locator('#visitNextBtn').click();await p.locator('#bookingDialog').waitFor({state:'visible'});
  console.log('BOOKING FIELDS',await p.locator('#bookingDoctor').innerText());
  await p.getByRole('button',{name:'Find slots',exact:true}).click();await p.waitForFunction(()=>document.getElementById('bookingSlot').options.length>1);
@@ -115,7 +115,7 @@ const deadline=setTimeout(()=>{console.error('Browser validation timed out');pro
  await p.waitForTimeout(300);await p.screenshot({path:shots+'/handoff.png',fullPage:true});
  await p.getByRole('link',{name:'Open doctor handoff',exact:true}).click();await p.waitForFunction(()=>!visitLoading && selectedPatient?.name==='Synthetic Handoff Patient');
  assert.equal(await p.evaluate(()=>activeWorkflow.state), 'PATIENT_UNVERIFIED');assert.equal(await p.evaluate(()=>activeAppointment.status),'REQUESTED');assert.equal(await p.evaluate(()=>activeEncounter),null);
- await p.locator('#visitNextBtn').click();await p.locator('#verificationDialog').waitFor({state:'visible'});await p.locator('#patientOtpInput').fill('123456');await p.locator('#verificationDialog').getByRole('button',{name:'Verify patient',exact:true}).click();await p.waitForFunction(()=>activeWorkflow?.state==='BOOKING_CONFIRMED' && !visitActionBusy);
+ await p.locator('#visitNextBtn').click();await p.getByRole('button',{name:'Use phone OTP instead',exact:true}).click();await p.locator('#verificationDialog').waitFor({state:'visible'});await p.locator('#patientOtpInput').fill('123456');await p.locator('#verificationDialog').getByRole('button',{name:'Verify patient',exact:true}).click();await p.waitForFunction(()=>activeWorkflow?.state==='BOOKING_CONFIRMED' && !visitActionBusy);
  assert.equal(await p.evaluate(()=>activeWorkflow.workflow_id),handoff.workflow);assert.equal(await p.evaluate(()=>activeAppointment.appointment_id),handoff.appointment);console.log('HANDOFF CONFIRMS SAME BOOKING',true);
  await p.locator('#visitNextBtn').click();await p.locator('#consentDialog').waitFor({state:'visible'});for(const id of ['consentRecording','consentTranscription','consentDocumentation'])await p.locator('#'+id).check();await p.getByRole('button',{name:'Save choices',exact:true}).click();await p.waitForFunction(()=>hasRequiredConsent() && !visitActionBusy);
  await p.locator('#visitNextBtn').click();await p.waitForFunction(()=>visitStage==='capture');

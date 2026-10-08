@@ -175,6 +175,8 @@ async def doctor_queue(
                 "start_at": appointment_start.isoformat(),
                 "end_at": appointment.end_at.astimezone(timezone).isoformat(),
                 "status": appointment.status.value,
+                "version": appointment.version,
+                "attendance": container.attendance_service.latest(appointment.appointment_id),
                 "department": departments.get(appointment.department_id, ""),
                 "visit_type": visit_types.get(appointment.visit_type_id, ""),
                 "location": locations.get(appointment.location_id, ""),

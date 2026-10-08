@@ -30,7 +30,7 @@ function continueIntake(){
 const studioIntakeSubmit=submitIntake;
 submitIntake=async function(event){
   if(intakeStage===0){event.preventDefault();continueIntake();return;}
-  for(const id of FIELDS){const field=document.getElementById(id);if(!field.checkValidity()){event.preventDefault();if(FIELDS.indexOf(id)<6)setIntakeStage(0);field.reportValidity();return;}}
+  for(const id of FIELDS){const field=document.getElementById(id);if(!field.checkValidity()){event.preventDefault();if(FIELDS.indexOf(id)<6){setIntakeStage(0);field.reportValidity();}else{setIntakeStage(1);showToast('Choose the department, doctor, visit type and a time.','error');}return;}}
   await studioIntakeSubmit(event);
   if(state.appointmentId){
     setIntakeStage(2);

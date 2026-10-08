@@ -849,13 +849,13 @@ async function runSelectedDemoVoice() {
   await beginDemoSession({ voice: true });
 }
 
-async function sendDemoMessage(event) {
+async function sendDemoMessage(event, choice = null) {
   if (event) event.preventDefault();
   if (!state.demoRunning || state.demoBusy) return;
   const scenario = getSelectedDemo();
   if (!scenario) return;
   const input = document.getElementById("demoInput");
-  const text = String(input.value || "").trim();
+  const text = choice ? choice.label : String(input.value || "").trim();
   if (!text) return;
 
   const epoch = state.demoSessionId;
@@ -869,10 +869,12 @@ async function sendDemoMessage(event) {
   setStatus("Samra is thinking…");
 
   try {
-    const result = await api("/api/desk/demo-calls/turn", {
+    const result = await api(choice ? "/api/desk/demo-calls/select" : "/api/desk/demo-calls/turn", {
       signal: state.demoAbort?.signal,
       method: "POST",
-      body: JSON.stringify({
+      body: JSON.stringify(choice ? {
+        scenario_id:scenario.id,history:state.demoHistory,field:choice.field,value:choice.value,revision:choice.revision,
+      } : {
         scenario_id: scenario.id,
         user_message: text,
         history: state.demoHistory,

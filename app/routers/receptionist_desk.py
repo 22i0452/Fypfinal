@@ -64,6 +64,29 @@ class DemoTtsPayload(BaseModel):
 
     text: str = Field(min_length=1, max_length=800)
 
+class BookingChoicesPayload(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    history:list[dict[str,str]]=Field(default_factory=list)
+    start_date:date|None=None
+
+class BookingSelectionPayload(BookingChoicesPayload):
+    scenario_id:str='in-new-booking'
+    field:str=Field(pattern='^(department|doctor|time)$')
+    value:str=Field(min_length=1,max_length=120)
+    revision:int=Field(ge=0)
+
+@router.post('/api/desk/demo-calls/choices')
+async def booking_choices(payload:BookingChoicesPayload,request:Request):
+    try:return await run_in_threadpool(get_container(request).demo_call_service.booking_choices,
+        payload.history,_preferred_doctor(request),payload.start_date)
+    except (DemoCallError,AppointmentError,ReceptionistIntegrationError) as exc:raise _service_error(exc) from exc
+
+@router.post('/api/desk/demo-calls/select')
+async def booking_selection(payload:BookingSelectionPayload,request:Request):
+    try:return await run_in_threadpool(get_container(request).demo_call_service.select_booking_choice,
+        payload.scenario_id,payload.history,payload.field,payload.value,payload.revision,_preferred_doctor(request))
+    except (DemoCallError,AppointmentError,ReceptionistIntegrationError,ValueError) as exc:raise _service_error(exc) from exc
+
 
 def _service_error(error: Exception):
     return service_http_error(error)

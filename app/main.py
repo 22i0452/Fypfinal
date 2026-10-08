@@ -29,6 +29,7 @@ from app.routers import (
     workflows,
     workspace,
     demo_reports,
+    attendance,
 )
 
 
@@ -83,6 +84,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(receptionist.router)
     application.include_router(receptionist_desk.router)
     application.include_router(appointments.router)
+    application.include_router(attendance.router)
     application.include_router(consents.router)
     application.include_router(notes.router)
     application.include_router(summaries.router)

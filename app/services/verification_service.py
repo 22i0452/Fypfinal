@@ -97,6 +97,30 @@ class PatientVerificationService:
         )
         return self._result(record, code)
 
+    def review_details(self, *, patient_id, workflow_id, expected_version, actor):
+        patient, workflow = self._authorized_context(patient_id, workflow_id, actor)
+        workflow = self.orchestrator.get_session(workflow_id, actor=actor)
+        if actor.role != 'doctor':
+            raise VerificationError('FORBIDDEN', 'Doctor review is required')
+        latest = self._latest_for_workflow(workflow_id)
+        if workflow.state != WorkflowState.PATIENT_UNVERIFIED:
+            if latest and latest.status == VerificationStatus.VERIFIED: return latest
+            raise VerificationError('INVALID_WORKFLOW_STATE', 'Patient details cannot be reviewed at this stage')
+        if workflow.version != expected_version:
+            raise VerificationError('VERSION_CONFLICT', 'The visit changed. Refresh before reviewing details.')
+        now = utc_now()
+        record = VerificationRecord(challenge_id=new_id('REVIEW'),patient_id=patient_id,
+            workflow_id=workflow_id,method='MANUAL_STAFF_REVIEW',status=VerificationStatus.VERIFIED,
+            normalized_phone_reference='',phone_last_four='',otp_digest='',created_at=now,
+            last_sent_at=now,expires_at=now,verified_at=now,used_at=now)
+        self.verifications.save(record)
+        self.orchestrator.perform_action(workflow_id,WorkflowAction.VERIFY_PATIENT,
+            actor=actor,expected_version=expected_version)
+        self.audit.record('patient_details_reviewed',actor_ref=actor.ref,action='manual_staff_review',
+            patient_ref=patient_id,resource_ref=workflow_id,
+            metadata={'method':'MANUAL_STAFF_REVIEW','phone_ownership_verified':False})
+        return record
+
     def resend(self, *, challenge_id: str, actor: Actor) -> VerificationChallengeResult:
         record = self._get(challenge_id)
         patient, _ = self._authorized_context(record.patient_id, record.workflow_id, actor)

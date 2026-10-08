@@ -1,5 +1,7 @@
 # MedFlowAI — Clinic Agent Platform
 
+**Reception booking and attendance:** inline department/doctor cards and real slot calendars replace visible booking dropdowns. The doctor workspace separates the schedule from patient records, defaults to staff detail review with optional OTP, and records attend/change/cancel responses separately from clinic approval. Notification delivery and the patient dashboard remain next-phase work. See [BOOKING_EXPERIENCE.md](BOOKING_EXPERIENCE.md).
+
 **Optional presentation:** the **Display settings** monitor icon on every active page controls website-wide Dark/Light, 80–160% page zoom, Reset and supported-browser full screen. Preferences carry across home, sign-in, reception, doctor and testing screens. **Present SOAP**, **Present codes** and **Present handoff** animate returned results over 12–13 seconds with Pause, Skip, Replay and expansion. Saving stays immediate; playback makes no API requests. See [PRESENTATION.md](PRESENTATION.md).
 
 **Demo testing report (Batch 5):** open **Demo testing** in the doctor workspace or the home footer, then run 16 repeatable fictional scenarios. No supplied dataset or provider credits are needed in synthetic mode. Results include actual assertions/timings, history, cancellation and JSON export. Optional live text checks use the existing OpenRouter key and require explicit opt-in. See [PROCESS_STUDIO.md](PROCESS_STUDIO.md) for setup and limits.

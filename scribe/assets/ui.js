@@ -453,6 +453,7 @@ async function fetchDoctorQueue({ quiet = false } = {}) {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(apiMessage(payload, "Unable to load appointments."));
     doctorAppointments = Array.isArray(payload.appointments) ? payload.appointments : [];
+    doctorScheduleZone = payload.timezone || "Asia/Karachi";
     renderDoctorAppointmentList();
   } catch (error) {
     console.error("Failed to fetch doctor appointment queue", error);
@@ -1044,13 +1045,17 @@ function syncBookingProfile() {
   document.getElementById("bookingSlot").innerHTML = '<option value="">Find an available slot</option>';
 }
 
+let availableSlotsRequestRevision = 0;
 async function loadAvailableSlots() {
+  const requestRevision = ++availableSlotsRequestRevision;
   const practitionerId = document.getElementById("bookingDoctor").value;
   const visitTypeId = document.getElementById("bookingVisitType").value;
   const startDate = document.getElementById("bookingStartDate").value;
   if (!selectedPatient || !practitionerId || !visitTypeId || !startDate) return;
+  const patientId = selectedPatient._id;
+  document.getElementById("bookingSlot").innerHTML = '<option value="">Checking available times…</option>';
   const params = new URLSearchParams({
-    patient_id: selectedPatient._id,
+    patient_id: patientId,
     practitioner_id: practitionerId,
     visit_type_id: visitTypeId,
     start_date: startDate,
@@ -1060,6 +1065,7 @@ async function loadAvailableSlots() {
     const response = await fetch(`/api/appointments/availability?${params}`);
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(apiMessage(payload, "Unable to load appointment slots."));
+    if (requestRevision !== availableSlotsRequestRevision || selectedPatient?._id !== patientId || document.getElementById("bookingDoctor").value !== practitionerId || document.getElementById("bookingVisitType").value !== visitTypeId || document.getElementById("bookingStartDate").value !== startDate) return;
     document.getElementById("bookingSlot").innerHTML = payload.slots.length
       ? '<option value="">Select a time</option>' + payload.slots.map((slot) => `<option value="${escAttr(slot.start_at)}">${escHtml(formatDateTime(slot.start_at))}</option>`).join("")
       : '<option value="">No slots available</option>';

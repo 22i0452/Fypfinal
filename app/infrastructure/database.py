@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Iterator
 
@@ -12,9 +13,14 @@ class SQLiteDatabase:
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
+        self._transaction = ContextVar('clinic_transaction', default=None)
 
     @contextmanager
     def connection(self) -> Iterator[sqlite3.Connection]:
+        existing = self._transaction.get()
+        if existing is not None:
+            yield existing
+            return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         connection = sqlite3.connect(self.path, timeout=10, check_same_thread=False)
         connection.row_factory = sqlite3.Row
@@ -28,6 +34,20 @@ class SQLiteDatabase:
             raise
         finally:
             connection.close()
+
+    @contextmanager
+    def transaction(self):
+        """Share one atomic transaction across coordinated repository writes."""
+        if self._transaction.get() is not None:
+            yield self._transaction.get()
+            return
+        with self.connection() as connection:
+            connection.execute('BEGIN IMMEDIATE')
+            token = self._transaction.set(connection)
+            try:
+                yield connection
+            finally:
+                self._transaction.reset(token)
 
     def initialize(self) -> None:
         with self.connection() as connection:

@@ -199,6 +199,8 @@ class ApplicationContainer:
         )
         self.consultation_review = ConsultationReviewService(self)
         self.demo_report_service = DemoReportService(self.database, settings)
+        from app.services.attendance_service import AttendanceService
+        self.attendance_service = AttendanceService(self)
 
     def initialize(self) -> None:
         if self.settings.is_production and self.settings.storage_backend == "json":
@@ -208,6 +210,7 @@ class ApplicationContainer:
                 stacklevel=2,
             )
         self.database.initialize()
+        self.attendance_service.initialize()
         self.process_trace.initialize()
         self.demo_report_service.initialize()
         self.consultation_review.store.initialize()

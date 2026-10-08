@@ -230,14 +230,18 @@ class DemoCallService:
             "history": next_history,
         }
 
-    def _booking_turn(self, scenario_id: str, history: list[dict[str, str]], clean: str, preferred_practitioner_id: str = "") -> dict[str, Any]:
+    def _booking_turn(self, scenario_id: str, history: list[dict[str, str]], clean: str, preferred_practitioner_id: str = "", selection=None) -> dict[str, Any]:
         flow = BookingFlow.from_history(history)
         flow.recent_turns = [item for item in history if item.get("role") in {"user", "assistant"}][-4:]
         today = datetime.now(_CLINIC_TIMEZONE).date()
         from app.services.demo_stt import transcript_issue
         issue = transcript_issue(clean)
         choices = self._doctor_choices(flow, preferred_practitioner_id) if flow.current == "doctor" else []
-        direct = self._short_answer(flow, clean) or self._catalog_answer(flow, clean, choices)
+        direct = selection or self._short_answer(flow, clean) or self._catalog_answer(flow, clean, choices)
+        if not direct and flow.current == 'time' and flow.step == 'collect' and re.fullmatch(r'first slot|next available|پہلا وقت|اگلا وقت',clean,re.I):
+            slots=self.booking_choices(history,preferred_practitioner_id).get('slots',[])
+            if slots:
+                direct={'intent':'answer','fields':{'time':{'ur':slots[0]['start_at'],'en':slots[0]['start_at'],'iso':slots[0]['start_at']}}}
         extracted = {"needs_review": True, "fields": {}, "interpretation": {"ur": clean, "en": ""}} if issue == "prompt_echo" else direct or self._extract(flow, clean)
         interpretation = extracted.get("interpretation")
         if not isinstance(interpretation, dict):
@@ -252,6 +256,15 @@ class DemoCallService:
             urdu, english = "اس جواب کا ایک حصہ واضح نہیں۔ براہ کرم اسے درست کریں یا دوبارہ بتائیں۔", "Part of that answer is uncertain. Edit it or say it again; your collected details are retained."
         else:
             urdu, english = flow.handle(clean, extracted, today=today)
+            if selection and (selection.get('fields') or {}).get('time') and (flow.pending or {}).get('key')=='time':
+                flow.pending['iso']=selection['fields']['time']['iso']
+            # Changing a department/doctor invalidates dependent appointment
+            # choices even when the caller corrects them in the final summary.
+            for key,dependent in [('department',('doctor','time')),('doctor',('time',))]:
+                if key in (extracted.get('fix') or []):
+                    for old in dependent:
+                        flow.values.pop(old,None);flow.prefill.pop(old,None);flow.field_evidence.pop(old,None)
+                    flow.partial_time={}
             selected = (extracted.get("fields") or {}).get("doctor") if isinstance(extracted.get("fields"), dict) else None
             if isinstance(selected, dict) and "doctor" in flow.values:
                 matched = next((row for row in choices if row["practitioner_id"] == selected.get("practitioner_id") and row["display_name"] == flow.values["doctor"]["en"]), None)
@@ -261,6 +274,11 @@ class DemoCallService:
                         proof = flow.field_evidence["doctor"]
                         proof["interpretation"]["practitioner_id"] = matched["practitioner_id"]
                         proof["checks"].append({"code":"doctor_profile", "label":"Doctor profile", "status":"passed", "detail":"Selection matched the current active department catalog by exact practitioner ID."})
+        if flow.current == 'time' and re.search(r'\bany\b|available',flow.values.get('doctor',{}).get('en',''),re.I):
+            available=self._doctor_choices(flow,preferred_practitioner_id)
+            chosen=next((d for d in available if d.get('recommended')),None)
+            if chosen:
+                flow.values['doctor']={'ur':chosen['display_name'],'en':chosen['display_name'],'practitioner_id':chosen['practitioner_id']}
         if flow.current == "doctor" and flow.step == "collect":
             choices = choices or self._doctor_choices(flow, preferred_practitioner_id)
             if choices:
@@ -287,6 +305,54 @@ class DemoCallService:
             "process": {**flow.process_state(), "extractor":extracted.get("_process_metadata"), "doctor_choices": choices},
             "understanding": {"raw": clean, **interpretation, "needs_review": review},
         }
+
+    def booking_choices(self, history, preferred='', start_date=None):
+        flow=BookingFlow.from_history(history)
+        integration=getattr(self,'integration',None)
+        if integration is None:raise DemoCallError('CONFIGURATION_UNAVAILABLE','Clinic choices are unavailable')
+        config=integration.configuration()
+        result={'field':flow.current,'revision':flow.evidence_turn,'departments':config['departments'],
+            'timezone':config['clinic']['timezone'],'doctors':[],'slots':[]}
+        department=next((d for d in config['departments'] if d['name'].casefold()==flow.values.get('department',{}).get('en','').casefold()),None)
+        if not department:return result
+        result['doctors']=self._doctor_choices(flow,preferred)
+        doctor=flow.values.get('doctor',{})
+        practitioner=next((d for d in result['doctors'] if d['practitioner_id']==doctor.get('practitioner_id') or d['display_name']==doctor.get('en')),None)
+        if not practitioner and re.search('any|available',doctor.get('en',''),re.I):
+            practitioner=next((d for d in result['doctors'] if d.get('recommended')),None)
+        if practitioner:
+            visit=next((v for v in config['visit_types'] if ('new' if flow.values.get('first_visit',{}).get('en')=='Yes' else 'follow') in v['name'].casefold()),config['visit_types'][0])
+            result.update(practitioner_id=practitioner['practitioner_id'],visit_type_id=visit['visit_type_id'])
+            result['slots']=integration.availability(practitioner_id=practitioner['practitioner_id'],
+                visit_type_id=visit['visit_type_id'],start_date=start_date,
+                days=1 if start_date else 14,limit=30)['slots']
+        return result
+
+    def select_booking_choice(self, scenario_id, history, field, value, revision, preferred=''):
+        flow=BookingFlow.from_history(history)
+        order=['department','doctor','time']
+        if scenario_id!='in-new-booking' or flow.done or field not in order or flow.current not in order or order.index(field)>order.index(flow.current) or flow.evidence_turn!=revision:
+            raise DemoCallError('VERSION_CONFLICT','The conversation moved on. Use the current choices.')
+        day=datetime.fromisoformat(value).date() if field=='time' else None
+        options=self.booking_choices(history,preferred,day)
+        if field=='department':
+            item=next((d for d in options['departments'] if d['department_id']==value),None)
+            data={'ur':item['name'],'en':item['name']} if item else None
+        elif field=='doctor':
+            item=next((d for d in options['doctors'] if d['practitioner_id']==value),None)
+            data={'ur':item['display_name'],'en':item['display_name'],'practitioner_id':value} if item else None
+        elif field=='time':
+            item=next((s for s in options['slots'] if datetime.fromisoformat(s['start_at'])==datetime.fromisoformat(value)),None)
+            data={'ur':value,'en':value,'iso':value} if item else None
+        else:data=None
+        if data is None:raise DemoCallError('CHOICE_UNAVAILABLE','This choice is no longer available. Refresh the choices.')
+        if field!=flow.current:
+            for old in order[order.index(field):]:
+                flow.values.pop(old,None);flow.prefill.pop(old,None);flow.field_evidence.pop(old,None)
+            flow.partial_time={};flow.pending=None;flow.step='collect';flow.current=field
+            history=[flow.state_message(),*[m for m in history if m.get('role')!='system']]
+        selected={'intent':'answer','fields':{field:data},'_process_metadata':{'method':'catalog_selection','fallback':False}}
+        return self._booking_turn(scenario_id,history,data['en'],preferred,selection=selected)
 
     def _doctor_choices(self, flow: BookingFlow, preferred: str = "") -> list[dict]:
         integration = getattr(self, "integration", None)

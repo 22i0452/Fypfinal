@@ -229,7 +229,7 @@ class SQLiteAppointmentRepository:
     def create_atomic(self, appointment: Appointment, *, request_hash: str) -> Appointment:
         payload = appointment.model_dump(mode="json")
         with self.database.connection() as connection:
-            connection.execute("BEGIN IMMEDIATE")
+            if not connection.in_transaction: connection.execute("BEGIN IMMEDIATE")
             existing_operation = connection.execute(
                 "SELECT * FROM appointment_operations WHERE idempotency_key = ?",
                 (appointment.idempotency_key,),
@@ -302,7 +302,7 @@ class SQLiteAppointmentRepository:
     ) -> Appointment:
         payload = appointment.model_dump(mode="json")
         with self.database.connection() as connection:
-            connection.execute("BEGIN IMMEDIATE")
+            if not connection.in_transaction: connection.execute("BEGIN IMMEDIATE")
             existing_operation = connection.execute(
                 "SELECT * FROM appointment_operations WHERE idempotency_key = ?",
                 (operation_idempotency_key,),

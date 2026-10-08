@@ -58,6 +58,7 @@ def _context_payload(container, workflow, actor) -> dict:
         note = container.note_lifecycle_service.payload(record, version, patient_name=patient.name if patient else "Patient")
     return {
         "workflow": _workflow_payload(workflow) if workflow else None,
+        "details_verification": {"method": verification.method, "verified_at": verification.verified_at.isoformat() if verification.verified_at else None} if workflow and (verification := container.verification_repository.latest_for_workflow(workflow.workflow_id)) and verification.status.value == "VERIFIED" else None,
         "appointment": appointment.model_dump(mode="json") if appointment else None,
         "encounter": encounter.model_dump(mode="json") if encounter else None,
         "consents": [item.model_dump(mode="json") for item in decisions.values() if item],

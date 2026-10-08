@@ -151,3 +151,26 @@ Browser scripts share localhost:8765 and must run sequentially. The test pack es
 - Existing product browser journey passed: booking, consent, capture, SOAP editing/version history, coding evidence/review, visit approval/completion and navigation; zero page errors.
 - Existing hands-free browser journey passed with the new returned-receipt playback assertion: short Urdu answers, real application booking/doctor handoff with fictional providers, manual switching, pause/interruption, error recovery, stale-response rejection and microphone permission recovery; zero page errors.
 - Real paid providers, physical audio and classroom projector hardware were not exercised. Default appearance/workflow remains dark/100% with presentation invoked only on request.
+
+## Inline booking calendars and staff attendance — 8 October 2026
+
+- **78 targeted Python tests passed** across booking experience/flow, demo finish/report, clinic API, appointment service, verification, workflow orchestration and guided consultation. The seven new booking-experience methods cover staff review independent of OTP/attendance, durable duplicate protection, clinic approval preserving confirmation, occupied-slot rejection, atomic replacement/audit rollback, cancellation with workflow update, assigned-doctor access, stale requests, exact catalog IDs and dependent-field clearing without a model call.
+- **22 Node voice/evidence UI tests passed.** Python parsing, changed JavaScript syntax and `git diff --check` passed.
+- New Chromium booking journey passed: manual intake through actual slot selection and saved doctor handoff; staff review and clinic approval; separate calendar/request views; read-only preview with unchanged appointment JSON; durable attendance confirmation/reload; replacement via available-time calendar; mixed conversation and card selection with exact saved practitioner and timezone. Reception and doctor calendars fit **1440/1280/390 widths at 80/100/130/160% zoom**, with zero page JavaScript errors.
+- Existing product Chromium journey passed, retaining OTP as an explicit optional path, consultation capture, SOAP/version edits, coding evidence/review and visit completion. Existing presentation journey passed, retaining the 13-second saved-result playback, pause/skip/replay, reduced motion, unchanged saved records/provider counts, all-page dark/light and zoom.
+- Existing hands-free Chromium journey passed: short Urdu answers, saved booking/handoff, manual Mic/Stop, switching with retained history, pause, explicit/experimental interruption, playback gating, uncertain-answer review, provider-failure recovery, Send now, stale responses and microphone permission recovery. An initial fixed wall-clock interruption pulse missed the capture state; the repeatable test now keeps the synthetic signal until observed real AudioWorklet capture, bounded to two seconds, and releases it in `finally`. Production voice thresholds are unchanged.
+
+Browser data/audio and provider responses are fictional/synthetic. These tests do not establish live Urdu accuracy, physical microphone quality, notification delivery or clinical correctness. Legacy TTS startup warmups logged network/certificate warnings in the Python run without assertion failures; live TTS availability was not evaluated. No real patient notification was sent. Prepared requests, staff-recorded responses and read-only patient-response previews remain explicitly distinct.
+
+Reproduce with the app dependencies and Playwright/Chromium:
+
+```sh
+python -m unittest tests.test_booking_experience tests.test_booking_flow tests.test_demo_call_finish tests.test_demo_reports tests.test_clinic_api_flow tests.test_appointment_service tests.test_verification_service tests.test_workflow_orchestrator tests.test_guided_consultation -q
+node --test tests/test_voice_engine.cjs tests/test_evidence_ui.cjs
+QA_CHROMIUM_PATH=/path/to/chromium node tests/test_booking_experience_browser.cjs
+QA_CHROMIUM_PATH=/path/to/chromium node tests/test_product_browser.cjs
+QA_CHROMIUM_PATH=/path/to/chromium node tests/test_hands_free_browser.cjs
+QA_CHROMIUM_PATH=/path/to/chromium node tests/test_presentation_browser.cjs
+```
+
+Run browser scripts sequentially when they share localhost:8765. Hands-free uses localhost:8766. No new provider key is needed for the booking/attendance feature itself. This targeted pass does not replace the historical full-discovery results and native PortAudio limitations above.
