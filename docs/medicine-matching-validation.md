@@ -38,3 +38,18 @@ An initial discovery run executed 241 tests, including failed module imports. It
 ## Live evaluation still required
 
 Use consented synthetic microphone scripts with exact intended medicine names, including Panadol, Motilium, unfamiliar Urdu names, brand variants, doses, stop/avoid wording and patient-reported use. Record the raw recognized transcript, automatic candidate, doctor correction, final English and SOAP. Measure name accuracy, false correction rate, unresolved-name rate and latency against the intended/audio-grounded reference. This update supplies guarded behavior and repeatable software checks; it does not establish zero recognition errors or validated clinical correctness.
+
+## Follow-up: approved medicines in SOAP
+
+- Distinguish the ordinary verb in "to prevent fever/vomiting" from the catalogue brand PREVENT. Explicit brand/form/dose references remain detectable.
+- Retain approved spelling metadata and short-turn medicine context when normalizing the transcript for fallback generation. Compare introduced names without case sensitivity.
+- Preserve "I'm giving you" and prescribing statements in the fallback plan, including stated doses and stop instructions. Bare names and other speakers' medication statements remain reported history rather than inferred prescriptions.
+- Recheck the fallback itself. Historical model validation errors are marked as errors of the rejected model draft, separately from current medicine checks. Provider-request failure has a separate explanation.
+
+66 targeted tests passed in 11.530 seconds:
+
+```sh
+python -m unittest tests.test_medicine_preservation tests.test_medicine_matching tests.test_soap_quality tests.test_note_lifecycle tests.test_guided_consultation
+```
+
+New regression cases include PREVENT verb/brand separation, lowercase approved spellings, short multi-party name turns, prescriptions/doses/negation in fallback, and API workflows after approval for both provider failure and validation rejection. This follow-up did not rerun the browser suites above and does not measure live model or audio accuracy. After pulling and restarting Replit, test a fresh SOAP draft; already saved notes are not rewritten.

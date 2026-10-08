@@ -11,7 +11,7 @@ from app.services.documentation_service import TranscribedText
 from medflow.domain.enums import Speaker
 from medflow.domain.models import TranscriptUtterance
 from tests import test_guided_consultation as guided
-from tests.test_soap_quality import SequenceAdapter,load_soap_module
+from tests.test_soap_quality import SequenceAdapter,FailingAdapter,load_soap_module
 
 
 class MedicinePreservationTests(unittest.TestCase):
@@ -103,6 +103,65 @@ class MedicinePreservationTests(unittest.TestCase):
         self.assertEqual(len(adapter.calls),2);self.assertIn('Panadol',result['plan'])
         self.assertEqual(soap_issues([{'text':'Take Panadol.'}],result),[])
 
+    def fallback(self, turns):
+        set_gateway(SecureLLMGateway(provider='mock',adapters={'mock':FailingAdapter()}))
+        return load_soap_module().SOAPGenerator().generate({},turns)
+
+    def test_giving_and_prescribing_keep_names_doses_and_stop_instructions(self):
+        for statement in ("I'm giving you Motilium 10 mg and Panadol 500 mg.",
+                          'I am prescribing Panadol 500 mg. Do not take Motilium 10 mg.',
+                          'I will give you Panadol 500 mg.'):
+            with self.subTest(statement=statement):
+                turns=[{'utterance_id':'U1','speaker':'Doctor','text':statement}]
+                result=self.fallback(turns)
+                self.assertIn(statement,result['plan'])
+                self.assertEqual(soap_issues(turns,result),[])
+
+    def test_approved_urdu_spelling_survives_fallback_normalization(self):
+        source='پینانڈول دوائی لیں۔';english='Take panadol medicine.'
+        review=clinician_review(source,english,{'پینانڈول':'panadol'},'D:test')
+        turns=[{'utterance_id':'U1','speaker':'Doctor','text':english,
+                'original_text':source,'clinical_english':english,'medicine_review':review}]
+        result=self.fallback(turns)
+        self.assertIn(english,result['plan'])
+        self.assertEqual(soap_issues(turns,result),[])
+        self.assertEqual(result['validation_issues'],['provider_error'])
+
+    def test_unprompted_and_short_medicine_names_do_not_become_prescriptions(self):
+        for speaker in ('Doctor','Nurse','Unknown','Patient','Attendant'):
+            with self.subTest(speaker=speaker):
+                turns=[{'utterance_id':'U1','speaker':speaker,'text':'Motilium',
+                        'medicine_context':True}]
+                result=self.fallback(turns)
+                self.assertIn('Motilium',result['subjective'])
+                self.assertNotIn('Motilium',result['plan'])
+                self.assertEqual(soap_issues(turns,result),[])
+                self.assertEqual(result['evidence'][0]['utterance_id'],'U1')
+
+    def test_prevention_word_does_not_reject_otherwise_valid_soap(self):
+        turns=[{'utterance_id':'U1','speaker':'Doctor','text':'Take Panadol to prevent fever.'}]
+        good={'subjective':'Not documented.','objective':'Not documented.',
+              'assessment':'Not documented.','plan':turns[0]['text'],
+              'evidence':[{'utterance_id':'U1','quote':turns[0]['text']}]}
+        adapter=SequenceAdapter([good]);set_gateway(SecureLLMGateway(provider='mock',adapters={'mock':adapter}))
+        result=load_soap_module().SOAPGenerator().generate({},turns)
+        self.assertEqual(result['generation_mode'],'MODEL_VALIDATED')
+        self.assertEqual(soap_issues(turns,result),[])
+        self.assertEqual(len(adapter.calls),1)
+
+    def test_rejected_model_errors_are_separate_from_fallback_checks(self):
+        turns=[{'utterance_id':'U1','speaker':'Doctor','text':'I am giving you Motilium.'}]
+        bad={'subjective':'Not documented.','objective':'Not documented.',
+             'assessment':'Not documented.','plan':'Not documented.',
+             'evidence':[{'utterance_id':'U1','quote':turns[0]['text']}]}
+        adapter=SequenceAdapter([bad,bad]);set_gateway(SecureLLMGateway(provider='mock',adapters={'mock':adapter}))
+        result=load_soap_module().SOAPGenerator().generate({},turns)
+        self.assertEqual(result['generation_mode'],'TRANSCRIPT_FALLBACK')
+        self.assertIn('model_draft_rejected:soap_medicine_missing:Motilium',result['validation_issues'])
+        self.assertNotIn('soap_medicine_missing:Motilium',result['validation_issues'])
+        self.assertEqual(soap_issues(turns,result),[])
+        self.assertEqual(len(adapter.calls),2)
+
 
 class MedicineWorkflowTests(unittest.TestCase):
     setUp=guided.GuidedConsultationTests.setUp
@@ -148,6 +207,42 @@ class MedicineWorkflowTests(unittest.TestCase):
         stale=self.client.post(self.path+'/generate-soap',json=first);self.assertEqual(stale.status_code,409)
         generated=self.client.post(self.path+'/generate-soap',json=self.revision());self.assertEqual(generated.status_code,200,generated.text)
         self.assertIn('Fixage',generated.json()['note']['soap']['plan'])
+
+    def test_approved_spelling_and_prescription_survive_provider_failure(self):
+        source='پینانڈول دوائی لیں۔'
+        self.medicine_capture(source,'Take پینانڈول medicine.')
+        response=self.client.patch(self.path+'/conversation',json={**self.revision(),
+            'corrections':[{'utterance_id':'U1','clinical_english':"I'm giving you panadol medicine.",
+                           'medicines_reviewed':True,'medicine_spellings':{'پینانڈول':'panadol'}}]})
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertFalse(response.json()['conversation_review']['medicine_report']['requires_review'])
+        set_gateway(SecureLLMGateway(provider='mock',adapters={'mock':FailingAdapter()}))
+        generated=self.client.post(self.path+'/generate-soap',json=self.revision())
+        self.assertEqual(generated.status_code,200,generated.text)
+        soap=generated.json()['note']['soap']
+        self.assertIn("I'm giving you panadol medicine.",soap['plan'])
+        self.assertEqual(soap['medicine_report']['soap_issues'],[])
+        self.assertFalse(soap['medicine_report']['requires_review'])
+        warnings=' '.join(soap['structured_soap']['warnings'])
+        self.assertIn('SOAP model request failed',warnings)
+        self.assertNotIn('model draft was unavailable',warnings)
+        self.assertEqual(self.context()['conversation_review']['raw_asr_text'],source)
+
+    def test_validation_rejection_message_does_not_claim_provider_failure(self):
+        self.medicine_capture('موٹیلیم لیں۔','Take Motilium.')
+        bad={'subjective':'Not documented.','objective':'Not documented.',
+             'assessment':'Not documented.','plan':'Not documented.',
+             'evidence':[{'utterance_id':'U1','quote':'Take Motilium.'}]}
+        set_gateway(SecureLLMGateway(provider='mock',adapters={'mock':SequenceAdapter([bad,bad])}))
+        response=self.client.post(self.path+'/generate-soap',json=self.revision())
+        self.assertEqual(response.status_code,200,response.text)
+        soap=response.json()['note']['soap']
+        self.assertEqual(soap['medicine_report']['soap_issues'],[])
+        warnings=' '.join(soap['structured_soap']['warnings'])
+        self.assertIn('Original model draft rejected',warnings)
+        self.assertIn('medicine missing: Motilium',warnings)
+        self.assertNotIn('SOAP model request failed',warnings)
+        self.assertNotIn('model draft was unavailable',warnings)
 
     def test_soap_edit_cannot_remove_brand_and_approve(self):
         self.medicine_capture('پیناڈول لیں۔','Take Panadol.')

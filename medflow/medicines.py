@@ -219,9 +219,10 @@ def soap_issues(utterances, soap):
         source.append((text,names))
     text='\n'.join(str(soap.get(section,'') or '') for section in ('subjective','objective','assessment','plan'))
     expected={name for _,names in source for name in names}
+    expected_spellings={name.casefold() for name in expected}
     issues=['soap_medicine_missing:'+name for name in sorted(expected) if not word_pattern(name).search(text)]
     for row in mentions(text):
-        if row['status']=='catalog_name' and row['name'] not in expected:
+        if row['status']=='catalog_name' and row['name'].casefold() not in expected_spellings:
             issues.append('soap_medicine_introduced:'+row['name'])
     # A named medicine's stated dose must remain attached to that same name.
     target_rows=[{'start':m.start(),'end':m.end(),'name':name} for name in expected for m in word_pattern(name).finditer(text)]

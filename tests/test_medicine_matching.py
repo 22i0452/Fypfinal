@@ -91,6 +91,21 @@ class AutomaticMatchingTests(unittest.TestCase):
         self.assertEqual([row['name'] for row in mentions('Maintain hydration. Take Paracetamol 500 mg every six hours.')],['Paracetamol'])
         self.assertEqual([row['name'] for row in mentions('Take Panadol for severe headache.')],['Panadol'])
 
+    def test_prevent_verb_does_not_become_catalogue_brand(self):
+        for sentence in ('Take Panadol to prevent fever.',
+                         'Take Motilium to prevent severe vomiting.',
+                         'Take Panadol to prevent your symptoms getting worse.',
+                         'Take medicine to prevent infection.',
+                         'Do not take Panadol to prevent complications.'):
+            with self.subTest(sentence=sentence):
+                self.assertFalse(any(row['source'].casefold() == 'prevent' for row in mentions(sentence)))
+        self.assertEqual(mentions('Prevent vomiting.',context=True),[])
+
+    def test_explicit_prevent_brand_is_still_detected(self):
+        for sentence in ('Take PREVENT 10 mg.', 'Take Prevent medicine.', 'PREVENT'):
+            with self.subTest(sentence=sentence):
+                self.assertEqual([row['name'] for row in mentions(sentence)],['PREVENT'])
+
     def test_automatic_llm_suggestion_is_not_confirmation(self):
         adapter=self.setup_adapter();result=automatic_matches(self.turns())['U1']
         self.assertEqual(adapter.task_order,['medicine_matching'])

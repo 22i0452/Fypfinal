@@ -55,10 +55,10 @@ _REVIEW_WARNING_MESSAGES = {
         "AI-suggested management considerations require doctor confirmation."
     ),
     "fallback_draft_requires_clinician_review": (
-        "The model draft was unavailable; a transcript-grounded fallback requires clinician review."
+        "A transcript-based draft was created instead of an accepted model draft. Clinician review is required."
     ),
     "provider_error": (
-        "The model provider was unavailable; a transcript-grounded fallback was created."
+        "The SOAP model request failed; a transcript-based draft was created."
     ),
     "unknown_evidence_removed": "An unknown transcript evidence reference was removed.",
     "unsupported_clinical_fact:objective": (
@@ -385,13 +385,15 @@ class DocumentationService:
         issues = [str(item) for item in soap.get("validation_issues", [])]
         review_flags = [str(item) for item in soap.get("review_flags", [])]
         warning_codes = list(dict.fromkeys([*review_flags, *issues]))
-        warnings = [
-            _REVIEW_WARNING_MESSAGES.get(
-                code,
-                code.replace("_", " ").replace(":", ": ").capitalize(),
-            )
-            for code in warning_codes
-        ]
+        warnings = []
+        for code in warning_codes:
+            if code.startswith("model_draft_rejected:"):
+                reason = code.split(":", 1)[1].replace("_", " ").replace(":", ": ")
+                warnings.append("Original model draft rejected: " + reason + ". Transcript-based draft used instead.")
+            else:
+                warnings.append(_REVIEW_WARNING_MESSAGES.get(
+                    code, code.replace("_", " ").replace(":", ": ").capitalize(),
+                ))
         missing_sections = [
             f"{section.title()} requires clinician input"
             for section in ("subjective", "objective", "assessment", "plan")

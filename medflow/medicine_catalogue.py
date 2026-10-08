@@ -5,6 +5,27 @@ from pathlib import Path
 
 PATH=Path(__file__).resolve().parents[1]/'app/data/medicine_catalogue.json'
 
+# PREVENT is a real catalogue brand as well as a common verb. Keep explicit
+# brand uses ("Take PREVENT 10 mg"), but do not turn treatment purposes into drugs.
+_PREVENT_VERB_RE = re.compile(
+    r'prevent\s+(?:(?:a|an|the|further|future|another|any|recurrent|serious|severe|possible|potential)\s+)*'
+    r'(?:fever|vomiting|nausea|pain|infections?|headaches?|relapse|complications?|'
+    r'dehydration|disease|symptoms?|recurrence|diabetes|blood pressure|clots?|stroke|pregnancy|bleeding)\b',
+    re.I,
+)
+
+def ordinary_brand_use(name, text, start):
+    if name.casefold() != 'prevent':
+        return False
+    if _PREVENT_VERB_RE.match(text, start):
+        return True
+    # Purpose clauses can have arbitrary objects ("to prevent your symptoms
+    # worsening"). Dose/form words still allow explicit brand references.
+    return bool(re.search(r'\bto\s+$', text[:start], re.I) and re.match(
+        r'\s+(?!(?:tablets?|capsules?|syrup|medicine|medication|drug|mg|mcg|ml|g)\b)[A-Za-z]',
+        text[start + len(name):], re.I,
+    ))
+
 @lru_cache(maxsize=1)
 def catalogue():
     data=json.loads(PATH.read_text())
@@ -41,6 +62,7 @@ def exact_mentions(text,*,context=False):
                 value=clause.group()[word.start():words[j-1].end()]
                 row=exact_index().get(value.casefold())
                 if row is None or value.casefold() in ORDINARY or len(value)<3:continue
+                if ordinary_brand_use(value,clause.group(),word.start()):continue
                 if not framed and (len(value)<5 or not re.fullmatch(r'\s*'+re.escape(value)+r'(?:\s+\d+(?:\s*(?:mg|mcg|ml|g))?)?\s*',clause.group(),re.I)):continue
                 found.append({'start':clause.start()+word.start(),'end':clause.start()+words[j-1].end(),
                     'source':value,'name':row['name'],'catalog_id':row['id'],'status':'catalog_name',

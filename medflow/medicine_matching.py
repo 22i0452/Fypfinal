@@ -71,6 +71,7 @@ def candidates(raw):
     return [{k:v for k,v in item.items() if k!='_score'} for item in ranked[:8]]
 
 def contextual_candidates(text,existing=(),*,context=False):
+    from medflow.medicine_catalogue import ordinary_brand_use
     results=[]
     for clause_match in re.finditer(r'[^;!?؟.\n۔]+',text):
         clause=clause_match.group()
@@ -79,6 +80,7 @@ def contextual_candidates(text,existing=(),*,context=False):
         if boundary and not context:clause=clause[:boundary.start()]
         for match in WORD_RE.finditer(clause):
             raw=match.group();start=clause_match.start()+match.start();end=clause_match.start()+match.end()
+            if ordinary_brand_use(raw,clause,match.start()):continue
             if any(start<row['end'] and row['start']<end for row in existing):continue
             shortlist=candidates(raw)
             if not shortlist:continue

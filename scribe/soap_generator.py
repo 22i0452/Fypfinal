@@ -17,7 +17,7 @@ from security_guardrails import (
     has_ai_management_label,
     validate_soap_output,
 )
-from medflow.medicines import soap_issues
+from medflow.medicines import soap_issues, check_turn, word_pattern
 
 
 _SOAP_SYSTEM_PROMPT = """\
@@ -159,7 +159,8 @@ _ASSESSMENT_HINT_RE = re.compile(
     re.I,
 )
 _PLAN_HINT_RE = re.compile(
-    r"\b(?:advise|recommend|prescrib|start|stop|continue|take|order|refer|"
+    r"\b(?:advis\w*|recommend\w*|prescrib\w*|start|stop|continue|take|order|refer|"
+    r"(?:I am|I'm|I will be|I'll be) giving you|I will give you|I'll give you|"
     r"follow[- ]?up|return|monitor|hydrate|counsel|review in|come back)\b",
     re.I,
 )
@@ -192,9 +193,9 @@ def _speaker_label(entry: dict) -> str:
     return label
 
 
-def _format_transcript(transcript: list[dict]) -> tuple[str, list[dict[str, str]]]:
+def _format_transcript(transcript: list[dict]) -> tuple[str, list[dict[str, Any]]]:
     lines: list[str] = []
-    normalized: list[dict[str, str]] = []
+    normalized: list[dict[str, Any]] = []
     for index, entry in enumerate(transcript, start=1):
         speaker = str(entry.get("speaker", "Unknown")).strip() or "Unknown"
         text = str(entry.get("text", "")).strip()
@@ -203,6 +204,11 @@ def _format_transcript(transcript: list[dict]) -> tuple[str, list[dict[str, str]
         utterance_id = str(entry.get("utterance_id") or f"U{index}")
         lines.append(f"{utterance_id} [{_speaker_label(entry)}]: {text}")
         item = {"utterance_id": utterance_id, "speaker": speaker, "text": text}
+        # Keep the exact reviewed revision when checking the fallback. Re-detecting
+        # the English alone loses approved Urdu spellings and short-turn context.
+        for key in ("original_text", "clinical_english", "medicine_review", "medicine_context"):
+            if key in entry:
+                item[key] = entry[key]
         if entry.get("addressed_to"):
             item["addressed_to"] = str(entry["addressed_to"])
         normalized.append(item)
@@ -421,7 +427,7 @@ def _speaker_matches(entry: dict[str, str], role: str) -> bool:
 
 
 def _fallback_sources(
-    transcript: list[dict[str, str]],
+    transcript: list[dict[str, Any]],
 ) -> tuple[
     list[tuple[str, str]],
     list[tuple[str, str]],
@@ -434,17 +440,32 @@ def _fallback_sources(
     plan: list[tuple[str, str]] = []
     for entry in transcript:
         utterance_id = entry["utterance_id"]
+        checked = check_turn(
+            entry.get("original_text") or entry["text"],
+            entry.get("clinical_english") or entry["text"],
+            entry.get("medicine_review"),
+            context=entry.get("medicine_context", False),
+        )
+        medicine_names = [
+            row.get("confirmed_english") or (row["name"] if row["status"] == "catalog_name" else row["source"])
+            for row in checked["mentions"]
+        ]
         for sentence in _sentences(entry["text"]):
+            has_medicine = any(word_pattern(name).search(sentence) for name in medicine_names)
             # Attendants give collateral history on the patient's behalf.
             if _speaker_matches(entry, "PATIENT") or _speaker_matches(entry, "ATTENDANT"):
-                if not _IDENTITY_ONLY_RE.search(sentence):
+                if has_medicine or not _IDENTITY_ONLY_RE.search(sentence):
                     subjective.append((utterance_id, sentence))
                 continue
             if _speaker_matches(entry, "NURSE"):
+                if has_medicine:
+                    subjective.append((utterance_id, f"Nurse-reported medication statement: {sentence}"))
                 if _OBJECTIVE_HINT_RE.search(sentence) and not _PLANNED_OBJECTIVE_RE.search(sentence):
                     objective.append((utterance_id, sentence))
                 continue
             if not _speaker_matches(entry, "DOCTOR"):
+                if has_medicine:
+                    subjective.append((utterance_id, f"Unattributed medication statement: {sentence}"))
                 continue
             # A task handed to the nurse is an in-clinic order, not a finding.
             if str(entry.get("addressed_to") or "").upper() == "NURSE":
@@ -456,6 +477,10 @@ def _fallback_sources(
                 assessment.append((utterance_id, sentence))
             if _PLAN_HINT_RE.search(sentence):
                 plan.append((utterance_id, sentence))
+            elif has_medicine:
+                # A name or question alone is not a prescription. Preserve the
+                # source statement without inventing a treatment instruction.
+                subjective.append((utterance_id, f"Clinician medication statement: {sentence}"))
     return subjective, objective, assessment, plan
 
 
@@ -487,7 +512,7 @@ def _grounded_fallback(
     patient: dict | None,
     visit_date: str,
     issues: list[str],
-    transcript: list[dict[str, str]],
+    transcript: list[dict[str, Any]],
 ) -> dict[str, Any]:
     complaint = str((patient or {}).get("current_complaint") or "").strip()
     history = str((patient or {}).get("past_medical_history") or "").strip()
@@ -524,7 +549,11 @@ def _grounded_fallback(
         transcript,
         [subjective_sources, objective_sources, assessment_sources, plan_sources],
     )
-    return {
+    rejection_issues = [
+        issue if issue == "provider_error" else "model_draft_rejected:" + issue
+        for issue in (issues or ["generation_failed_safe_fallback"])
+    ]
+    result = {
         "subjective": " ".join(subjective_parts),
         "objective": objective,
         "assessment": assessment,
@@ -532,7 +561,7 @@ def _grounded_fallback(
         "visit_date": visit_date,
         "generated_by": "AI Medical Scribe",
         "evidence": evidence,
-        "validation_issues": list(dict.fromkeys(issues or ["generation_failed_safe_fallback"])),
+        "validation_issues": list(dict.fromkeys(rejection_issues)),
         "review_flags": ["fallback_draft_requires_clinician_review"],
         "generation_mode": "TRANSCRIPT_FALLBACK",
         "patient_name": (
@@ -540,6 +569,10 @@ def _grounded_fallback(
         ),
         "state": "REVIEW_REQUIRED",
     }
+    # Historical model errors must not look like failures of the new fallback.
+    # Any remaining preservation failure is separately reported on this draft.
+    result["validation_issues"].extend(soap_issues(transcript, result))
+    return result
 
 
 class SOAPGenerator:
