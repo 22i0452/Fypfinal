@@ -1,5 +1,10 @@
 # MedFlowAI — Clinic Agent Platform
 
+**Replit FYP demo publishing:** follow [the prepared setup guide](docs/replit-demo-publish.md).
+It includes persistent PostgreSQL records, three fictional doctor/patient profiles,
+same-server APIs/WebSockets, medicine evidence and PDF exports. No Replit Agent
+coding is needed; configure the database and secrets, then publish.
+
 **Reception booking and attendance:** inline department/doctor cards and real slot calendars replace visible booking dropdowns. The doctor workspace separates the schedule from patient records, defaults to staff detail review with optional OTP, and records attend/change/cancel responses separately from clinic approval. Notification delivery and the patient dashboard remain next-phase work. See [BOOKING_EXPERIENCE.md](BOOKING_EXPERIENCE.md).
 
 **Optional presentation:** the **Display settings** monitor icon on every active page controls website-wide Dark/Light, 80–160% page zoom, Reset and supported-browser full screen. Preferences carry across home, sign-in, reception, doctor and testing screens. **Present SOAP**, **Present codes** and **Present handoff** animate returned results over 12–13 seconds with Pause, Skip, Replay and expansion. Saving stays immediate; playback makes no API requests. See [PRESENTATION.md](PRESENTATION.md).

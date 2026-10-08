@@ -3,7 +3,7 @@ from typing import Literal
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, ConfigDict
 
 from app.dependencies import get_container, get_current_user
@@ -78,3 +78,12 @@ async def export_run(run_id:str,request:Request,user:AuthUser=Depends(get_curren
     try:report=service(request,user).get(run_id,user.user_id)
     except DemoReportError as exc:raise service_http_error(exc) from exc
     return JSONResponse(report,headers={'Content-Disposition':f'attachment; filename="medflow-test-{report["run_id"]}.json"','Cache-Control':'no-store'})
+
+
+@router.get('/api/demo-testing/runs/{run_id}/export.pdf')
+async def export_pdf(run_id:str,request:Request,user:AuthUser=Depends(get_current_user)):
+    try:report=service(request,user).get(run_id,user.user_id)
+    except DemoReportError as exc:raise service_http_error(exc) from exc
+    from app.services.pdf_reports import testing_pdf
+    return Response(testing_pdf(report),media_type='application/pdf',headers={
+        'Content-Disposition':f'attachment; filename="medflow-test-{report["run_id"]}.pdf"','Cache-Control':'no-store'})

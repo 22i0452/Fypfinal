@@ -152,23 +152,24 @@ class ConsultationReviewService:
                     correction=changes.get(item.utterance_id,{})
                     old=previous[item.utterance_id]
                     if not correction:
-                        context_changed=item.medicine_context!=old.medicine_context
+                        context_changed=(item.medicine_context!=old.medicine_context or
+                            item.medicine_suggestions.get('context_fingerprint')!=old.medicine_suggestions.get('context_fingerprint'))
                         update={'transcript_id':new_transcript_id}
                         if context_changed:
-                            update.update(medicine_context=item.medicine_context,medicine_review=None,
+                            update.update(medicine_context=item.medicine_context,medicine_review=old.medicine_review if item.medicine_context==old.medicine_context else None,
                                 medicine_suggestions=item.medicine_suggestions,
-                                medicine_checks=check_turn(old.original_text,old.clinical_english,context=item.medicine_context))
+                                medicine_checks=check_turn(old.original_text,old.clinical_english,old.medicine_review,context=item.medicine_context,analysis=item.medicine_suggestions))
                         result.append(old.model_copy(update=update))
                         continue
                     english=correction.get('clinical_english',item.clinical_english)
                     review=old.medicine_review if english==old.clinical_english and item.original_text==old.original_text and item.medicine_context==old.medicine_context else None
                     if correction.get('medicines_reviewed'):
                         try:
-                            review=clinician_review(item.original_text,english,correction.get('medicine_spellings',{}),actor.ref,context=item.medicine_context)
+                            review=clinician_review(item.original_text,english,correction.get('medicine_spellings',{}),actor.ref,context=item.medicine_context,analysis=item.medicine_suggestions)
                         except ValueError as exc:
                             raise ConsultationReviewError('INVALID_MEDICINE_REVIEW',str(exc)) from exc
                     result.append(item.model_copy(update={'clinical_english':english,'medicine_review':review,
-                        'medicine_checks':check_turn(item.original_text,english,review,context=item.medicine_context)}))
+                        'medicine_checks':check_turn(item.original_text,english,review,context=item.medicine_context,analysis=item.medicine_suggestions)}))
                 return result
             translated = self._trace_call(claimed, 'translation', translate_corrected, lambda result: {'utterances': [self.c.documentation_service.utterance_payload(item, translated=True) for item in result], 'revision': revision+1, 'clinician_corrected_turns': list(changes)})
             latest = self.context(workflow_id, actor)

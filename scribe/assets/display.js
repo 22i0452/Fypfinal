@@ -79,6 +79,11 @@ window.MedFlowDisplay = (() => {
     if (!document.documentElement.requestFullscreen) panel.querySelector('#displayFullscreen').hidden = true;
     document.addEventListener('fullscreenchange', () => {panel.querySelector('#displayFullscreen span').textContent = document.fullscreenElement ? 'Exit full screen' : 'Full screen';});
     apply();
+    if (typeof window.fetch === 'function') window.fetch('/api/demo-access').then(response => response.ok ? response.json() : null).then(config => {
+      if (!config?.demo) return;
+      const badge = document.createElement('small'); badge.className = 'demo-deployment-badge';
+      badge.textContent = 'FYP demo · fictional patients'; document.body.append(badge);
+    }).catch(() => {});
   }
   preferences = load(); apply();
   window.addEventListener('resize', () => apply());

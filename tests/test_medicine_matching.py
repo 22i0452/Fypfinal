@@ -23,6 +23,10 @@ class MatchingAdapter(MockProviderAdapter):
 
     def chat(self,*,task_type,model,messages,**kwargs):
         self.task_order.append(task_type)
+        if task_type=='medicine_context':
+            self.calls.append({'task_type':task_type,'messages':messages})
+            if self.mode=='offline':raise RuntimeError('Synthetic unavailable provider')
+            return json.dumps({'entities':[]})
         if task_type=='medicine_lookup_query':
             self.calls.append({'task_type':task_type,'messages':messages})
             if self.mode=='offline':raise RuntimeError('Synthetic unavailable provider')
@@ -108,7 +112,7 @@ class AutomaticMatchingTests(unittest.TestCase):
 
     def test_automatic_llm_suggestion_is_not_confirmation(self):
         adapter=self.setup_adapter();result=automatic_matches(self.turns())['U1']
-        self.assertEqual(adapter.task_order,['medicine_matching'])
+        self.assertEqual(adapter.task_order,['medicine_context','medicine_matching'])
         item=result['mentions'][0];chosen=next(c for c in item['candidates'] if c['catalog_id']==item['selected_catalog_id'])
         self.assertEqual(chosen['name'],'Motilium');self.assertEqual(item['status'],'suggested')
         self.assertIn('name_confirmation_required',check_turn(self.turns()[0]['original_text'],self.turns()[0]['clinical_english'])['issues'])
@@ -128,7 +132,7 @@ class AutomaticMatchingTests(unittest.TestCase):
     def test_unfamiliar_urdu_uses_automatic_search_query_before_catalogue_check(self):
         adapter=self.setup_adapter()
         result=automatic_matches([{'utterance_id':'U1','speaker':'Doctor','original_text':'گلوکوفیج دوائی لیں۔'}])['U1']
-        self.assertEqual(adapter.task_order,['medicine_lookup_query','medicine_matching'])
+        self.assertEqual(adapter.task_order,['medicine_context','medicine_lookup_query','medicine_matching'])
         item=next(row for row in result['mentions'] if row['source']=='گلوکوفیج')
         choice=next(row for row in item['candidates'] if row['catalog_id']==item['selected_catalog_id'])
         self.assertEqual(choice['name'],'Glucophage');self.assertEqual(item['lookup_method'],'automatic transliteration query')
@@ -145,14 +149,14 @@ class AutomaticMatchingTests(unittest.TestCase):
         turns=[{'utterance_id':'U0','speaker':'Doctor','original_text':'Which medicine do you take?'},
             {'utterance_id':'U1','speaker':'Patient','original_text':'mortiiduom','medicine_context':True}]
         result=automatic_matches(turns)['U1'];self.assertEqual(result['mentions'][0]['status'],'suggested')
-        jobs=json.loads(adapter.calls[0]['messages'][-1]['content'])['mentions']
+        jobs=json.loads(next(call for call in adapter.calls if call.get('task_type')=='medicine_matching')['messages'][-1]['content'])['mentions']
         self.assertEqual(next(row for row in jobs if row['recognized']=='mortiiduom')['previous_turn'],'Which medicine do you take?')
         self.assertTrue(check_turn('mortiiduom','mortiiduom',context=True)['issues'])
 
     def test_matching_runs_before_translation_and_correct_urdu_is_repaired(self):
         adapter=self.setup_adapter();adapter.set_response('translation',{'conversation':[{'utterance_id':'U1','text':'Take painkillers 500 mg.'}]})
         result=MedicalTranslator().translate_conversation([{'utterance_id':'U1','speaker':'Doctor','original_text':'پیناڈول 500 mg لیں۔'}])[0]
-        self.assertEqual(adapter.task_order,['medicine_matching','translation','medicine_translation_repair'])
+        self.assertEqual(adapter.task_order,['medicine_context','medicine_matching','translation','medicine_translation_repair'])
         self.assertEqual(result['original_text'],'پیناڈول 500 mg لیں۔');self.assertEqual(result['clinical_english'],'Take Panadol 500 mg.')
         self.assertEqual(result['medicine_checks']['issues'],[])
         self.assertEqual(result['medicine_suggestions']['fingerprint'],fingerprint(result['original_text'],result['clinical_english']))

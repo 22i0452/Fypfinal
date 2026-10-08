@@ -3,30 +3,27 @@ modules = ["nodejs-24", "python-3.12"]
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
-
-[deployment.postBuild]
-args = ["pnpm", "store", "prune"]
-env = { "CI" = "true" }
+build = ["python", "-m", "pip", "install", "-r", "requirements-deploy.txt"]
+run = ["python", "scripts/run_demo.py", "--published"]
 
 [workflows]
-runButton = "Project"
+runButton = "Run MedFlow"
 
 [[workflows.workflow]]
-name = "Project"
-mode = "parallel"
+name = "Run MedFlow"
 author = "agent"
 
 [[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "artifacts/medflow-clinical-studio: web"
+task = "shell.exec"
+args = "python scripts/run_demo.py"
+waitForPort = 8000
+
+[workflows.workflow.metadata]
+outputType = "webview"
 
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
-
-[postMerge]
-path = "scripts/post-merge.sh"
-timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"

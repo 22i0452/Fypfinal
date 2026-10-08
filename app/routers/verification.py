@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, HTTPException
 from pydantic import BaseModel, Field, ConfigDict
 
 from app.dependencies import actor_for_user, get_container, get_current_user
@@ -51,6 +51,8 @@ async def request_challenge(
     user: AuthUser = Depends(get_current_user),
 ):
     container = get_container(request)
+    if container.settings.is_demo:
+        raise HTTPException(409, 'SMS verification is not part of this synthetic demo. Use doctor review of patient details.')
     actor = actor_for_user(container, user, payload.patient_id)
     try:
         result = container.verification_service.request_challenge(
@@ -70,6 +72,8 @@ async def resend_challenge(
     user: AuthUser = Depends(get_current_user),
 ):
     container = get_container(request)
+    if container.settings.is_demo:
+        raise HTTPException(409, 'SMS verification is not part of this synthetic demo. Use doctor review of patient details.')
     actor = actor_for_user(container, user)
     try:
         result = container.verification_service.resend(challenge_id=challenge_id, actor=actor)
@@ -86,6 +90,8 @@ async def verify_challenge(
     user: AuthUser = Depends(get_current_user),
 ):
     container = get_container(request)
+    if container.settings.is_demo:
+        raise HTTPException(409, 'SMS verification is not part of this synthetic demo. Use doctor review of patient details.')
     actor = actor_for_user(container, user)
     try:
         result = container.verification_service.verify(

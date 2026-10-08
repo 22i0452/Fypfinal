@@ -54,6 +54,9 @@ class ApplicationContainer:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self.database = SQLiteDatabase(settings.database_path)
+        if settings.storage_backend == 'postgres':
+            from app.infrastructure.postgres_database import PostgresDatabase
+            self.database = PostgresDatabase(settings.database_url)
         self.process_trace = ProcessTraceStore(self.database)
         self.auth_repository = SQLiteAuthRepository(
             self.database,
@@ -66,19 +69,18 @@ class ApplicationContainer:
         self.verification_repository = SQLiteVerificationRepository(self.database)
         self.consent_repository = SQLiteConsentRepository(self.database)
         self.audit_repository = SQLiteAuditRepository(self.database)
-        self.patient_repository = JsonPatientRepository(settings.patient_records_dir)
-        self.note_repository = JsonNoteRepository(settings.generated_notes_dir)
-        self.transcript_repository = JsonTranscriptRepository(settings.generated_notes_dir / "_transcripts")
-        self.previsit_summary_repository = JsonPreVisitSummaryRepository(
-            settings.generated_notes_dir / "_previsit_summaries"
-        )
-        self.after_visit_summary_repository = JsonAfterVisitSummaryRepository(
-            settings.generated_notes_dir / "_after_visit_summaries"
-        )
-        self.template_repository = JsonTemplateRepository(settings.generated_notes_dir / "_templates")
-        self.code_suggestion_repository = JsonCodeSuggestionRepository(
-            settings.generated_notes_dir / "_code_suggestions"
-        )
+        if settings.storage_backend in {'postgres', 'sql'}:
+            from medflow.repositories.sql_documents import repositories
+            for name, repository in repositories(self.database).items():
+                setattr(self, name, repository)
+        else:
+            self.patient_repository = JsonPatientRepository(settings.patient_records_dir)
+            self.note_repository = JsonNoteRepository(settings.generated_notes_dir)
+            self.transcript_repository = JsonTranscriptRepository(settings.generated_notes_dir / "_transcripts")
+            self.previsit_summary_repository = JsonPreVisitSummaryRepository(settings.generated_notes_dir / "_previsit_summaries")
+            self.after_visit_summary_repository = JsonAfterVisitSummaryRepository(settings.generated_notes_dir / "_after_visit_summaries")
+            self.template_repository = JsonTemplateRepository(settings.generated_notes_dir / "_templates")
+            self.code_suggestion_repository = JsonCodeSuggestionRepository(settings.generated_notes_dir / "_code_suggestions")
         self.audit_service = AuditService(self.audit_repository)
         self.workflow_orchestrator = ClinicWorkflowOrchestrator(self.workflow_repository)
         otp_provider = MockOTPProvider(settings) if settings.mock_otp_enabled else SMSOTPProvider()
@@ -210,12 +212,18 @@ class ApplicationContainer:
                 stacklevel=2,
             )
         self.database.initialize()
+        if self.settings.storage_backend in {'postgres', 'sql'}:
+            from medflow.repositories.sql_documents import initialize
+            initialize(self.database)
         self.attendance_service.initialize()
         self.process_trace.initialize()
         self.demo_report_service.initialize()
         self.consultation_review.store.initialize()
         self.database.seed_clinic_configuration(self.settings.clinic_seed_path)
         self.database.connect_existing_doctors_to_profiles()
+        if self.settings.demo_profiles_enabled:
+            from app.services.demo_profiles import seed_demo_profiles
+            seed_demo_profiles(self)
         self.template_service.seed_defaults()
         self._ensure_primary_doctor()
         self._migrate_legacy_patient_assignments()

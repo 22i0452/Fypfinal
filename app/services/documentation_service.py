@@ -323,7 +323,7 @@ class DocumentationService:
             "clinical_english": utterance.clinical_english,
             "text": text,
             "needs_review": utterance.needs_review,
-            "medicine_checks": check_turn(utterance.original_text,utterance.clinical_english,utterance.medicine_review,context=utterance.medicine_context),
+            "medicine_checks": check_turn(utterance.original_text,utterance.clinical_english,utterance.medicine_review,context=utterance.medicine_context,analysis=utterance.medicine_suggestions),
             "medicine_review": utterance.medicine_review,
             "medicine_context":utterance.medicine_context,
             "medicine_suggestions":utterance.medicine_suggestions if utterance.medicine_suggestions.get('fingerprint')==fingerprint(utterance.original_text,utterance.clinical_english) else {},

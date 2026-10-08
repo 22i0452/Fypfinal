@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime
+import json
 import re
 import sys
 from pathlib import Path
@@ -17,7 +18,7 @@ from security_guardrails import (
     has_ai_management_label,
     validate_soap_output,
 )
-from medflow.medicines import soap_issues, check_turn, word_pattern
+from medflow.medicines import soap_issues, check_turn, word_pattern, expected_name
 
 
 _SOAP_SYSTEM_PROMPT = """\
@@ -161,11 +162,14 @@ _ASSESSMENT_HINT_RE = re.compile(
 _PLAN_HINT_RE = re.compile(
     r"\b(?:advis\w*|recommend\w*|prescrib\w*|start|stop|continue|take|order|refer|"
     r"(?:I am|I'm|I will be|I'll be) giving you|I will give you|I'll give you|"
+    r"writing (?:you )?(?:a |the )?prescription|"
     r"follow[- ]?up|return|monitor|hydrate|counsel|review in|come back)\b",
     re.I,
 )
 _PLANNED_OBJECTIVE_RE = re.compile(
-    r"\b(?:order|ordered|plan(?:ned)?|recommend|schedule|obtain|refer|send for)\b",
+    r"\b(?:order|ordered|plan(?:ned)?|recommend\w*|schedule|obtain|refer|send for|"
+    r"(?:need|needs|have) to (?:get|have)|get (?:a |the |your )?(?:blood |diabetes )?test\w* done|"
+    r"open (?:your|this) mouth|so (?:I|we) can check)\b",
     re.I,
 )
 _IDENTITY_ONLY_RE = re.compile(
@@ -206,7 +210,7 @@ def _format_transcript(transcript: list[dict]) -> tuple[str, list[dict[str, Any]
         item = {"utterance_id": utterance_id, "speaker": speaker, "text": text}
         # Keep the exact reviewed revision when checking the fallback. Re-detecting
         # the English alone loses approved Urdu spellings and short-turn context.
-        for key in ("original_text", "clinical_english", "medicine_review", "medicine_context"):
+        for key in ("original_text", "clinical_english", "medicine_review", "medicine_context", "medicine_suggestions"):
             if key in entry:
                 item[key] = entry[key]
         if entry.get("addressed_to"):
@@ -254,7 +258,7 @@ def _objective_hints(transcript: list[dict[str, str]]) -> str:
     hints = [
         f"{entry['utterance_id']} [{entry['speaker']}]: {entry['text']}"
         for entry in transcript
-        if _OBJECTIVE_HINT_RE.search(entry["text"])
+        if _OBJECTIVE_HINT_RE.search(entry["text"]) and not _PLANNED_OBJECTIVE_RE.search(entry["text"])
     ]
     if not hints:
         return "No candidate objective-source utterances were detected automatically; review the full transcript."
@@ -268,6 +272,7 @@ def _build_user_message(
     objective_hints: str,
     visit_date: str,
     template: dict | None,
+    medicine_manifest: list[dict] | None = None,
 ) -> str:
     return f"""\
 MINIMIZED_PATIENT_INTAKE_CONTEXT:
@@ -283,6 +288,14 @@ UNTRUSTED_DOCTOR_PATIENT_TRANSCRIPT:
 
 POTENTIAL_OBJECTIVE_SOURCE_UTTERANCES:
 {objective_hints}
+
+SOURCE_MEDICINE_MANIFEST:
+{json.dumps(medicine_manifest or [], ensure_ascii=False)}
+These names come from the reviewed conversation, not a list of treatments to
+recommend. Keep their EXACT English spellings, stated dose and negation. Preserve
+who said them and whether they are prescribed, reported, stopped or uncertain.
+Test orders and examination instructions are not medicines. Do not replace a
+source brand with its generic, a class, a familiar spelling or an inferred name.
 
 VISIT_DATE:
 {visit_date}
@@ -304,6 +317,10 @@ medicine, dose, or dangerous approval field. An unstated diagnosis or management
 idea is permitted only with the exact AI-suggestion label and direct symptom
 grounding required by the original system message. Use only supplied utterance
 IDs and the exact schema from the original system message.
+For soap_medicine_missing, restore the EXACT manifest name and its source-stated
+instruction. For soap_medicine_introduced, remove only the unsupported name.
+Never remove a source medicine to solve a missing-name error. The previous draft
+is supplied for repair, but only the original transcript/manifest supplies facts.
 For a suggested Plan, repeat an exact reported symptom term immediately after
 the label; do not use only generic wording such as "symptoms" or "condition".
 """
@@ -445,9 +462,10 @@ def _fallback_sources(
             entry.get("clinical_english") or entry["text"],
             entry.get("medicine_review"),
             context=entry.get("medicine_context", False),
+            analysis=entry.get('medicine_suggestions'),
         )
         medicine_names = [
-            row.get("confirmed_english") or (row["name"] if row["status"] == "catalog_name" else row["source"])
+            expected_name(row)
             for row in checked["mentions"]
         ]
         for sentence in _sentences(entry["text"]):
@@ -475,7 +493,7 @@ def _fallback_sources(
                 objective.append((utterance_id, sentence))
             if _ASSESSMENT_HINT_RE.search(sentence):
                 assessment.append((utterance_id, sentence))
-            if _PLAN_HINT_RE.search(sentence):
+            if _PLAN_HINT_RE.search(sentence) or _PLANNED_OBJECTIVE_RE.search(sentence):
                 plan.append((utterance_id, sentence))
             elif has_medicine:
                 # A name or question alone is not a prescription. Preserve the
@@ -486,6 +504,13 @@ def _fallback_sources(
 
 def _join_source_text(prefix: str, sources: list[tuple[str, str]]) -> str:
     return f"{prefix} {' '.join(text for _, text in sources)}".strip()
+
+
+def _source_claims(prefix, sources, missing):
+    if not sources:
+        return [{'text':missing,'evidence_ids':[]}]
+    return [{'text':(prefix+' ' if index==0 else '')+text,'evidence_ids':[uid]}
+            for index,(uid,text) in enumerate(sources)]
 
 
 def _fallback_evidence(
@@ -549,6 +574,10 @@ def _grounded_fallback(
         transcript,
         [subjective_sources, objective_sources, assessment_sources, plan_sources],
     )
+    subjective_claims=(_source_claims('Transcript-documented patient history:',subjective_sources,'')
+                       if subjective_sources else [])
+    # Intake-only facts remain separate from conversation evidence.
+    subjective_claims.extend({'text':text,'evidence_ids':[]} for text in subjective_parts[1 if subjective_sources else 0:])
     rejection_issues = [
         issue if issue == "provider_error" else "model_draft_rejected:" + issue
         for issue in (issues or ["generation_failed_safe_fallback"])
@@ -561,6 +590,12 @@ def _grounded_fallback(
         "visit_date": visit_date,
         "generated_by": "AI Medical Scribe",
         "evidence": evidence,
+        "claim_sources": {
+            'subjective':subjective_claims,
+            'objective':_source_claims('Clinician-documented encounter findings:',objective_sources,_MISSING_TEXT['objective']),
+            'assessment':_source_claims('Clinician-stated assessment:',assessment_sources,_MISSING_TEXT['assessment']),
+            'plan':_source_claims('Clinician-stated plan:',plan_sources,_MISSING_TEXT['plan']),
+        },
         "validation_issues": list(dict.fromkeys(rejection_issues)),
         "review_flags": ["fallback_draft_requires_clinician_review"],
         "generation_mode": "TRANSCRIPT_FALLBACK",
@@ -592,6 +627,15 @@ class SOAPGenerator:
         if not visit_date:
             visit_date = datetime.date.today().isoformat()
         conversation, normalized_transcript = _format_transcript(transcript)
+        medicine_manifest=[]
+        for turn in transcript:
+            english=turn.get('clinical_english') or turn.get('text') or turn.get('original_text') or ''
+            checked=check_turn(turn.get('original_text') or english,english,turn.get('medicine_review'),
+                               context=turn.get('medicine_context',False),analysis=turn.get('medicine_suggestions'))
+            for row in checked['mentions']:
+                medicine_manifest.append({'utterance_id':turn.get('utterance_id'),
+                    'speaker':turn.get('speaker','Unknown'),'name':expected_name(row),
+                    'source_statement':english,'doctor_reviewed':bool(checked['reviewed_by'])})
         patient_ref = str((patient or {}).get("_id") or (patient or {}).get("patient_id") or "")
         user_message = _build_user_message(
             patient_context=_format_patient_context(patient),
@@ -599,6 +643,7 @@ class SOAPGenerator:
             objective_hints=_objective_hints(normalized_transcript),
             visit_date=visit_date,
             template=template,
+            medicine_manifest=medicine_manifest,
         )
         base_messages = [
             {"role": "system", "content": _SOAP_SYSTEM_PROMPT},
@@ -611,6 +656,10 @@ class SOAPGenerator:
             messages = list(base_messages)
             if attempt and last_issues:
                 messages.append({"role": "system", "content": _repair_instruction(last_issues)})
+                if last_candidate:
+                    messages.append({'role':'user','content':json.dumps({
+                        'previous_rejected_draft':last_candidate,'validation_issues':last_issues,
+                        'source_medicine_manifest':medicine_manifest},ensure_ascii=False)})
             try:
                 candidate = get_gateway().chat_json(
                     task_type="soap_generation",
@@ -619,9 +668,12 @@ class SOAPGenerator:
                     patient_ref=patient_ref,
                     patient_context=patient or {},
                     temperature=0.2,
-                    max_tokens=3200,
+                    max_tokens=6000,
                 )
-            except Exception:
+            except Exception as exc:
+                if str(exc) in {'Provider returned invalid JSON','Provider returned non-object JSON'}:
+                    last_issues=['model_json_invalid']
+                    continue
                 last_issues = ["provider_error"]
                 break
 

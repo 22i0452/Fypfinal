@@ -26,3 +26,5 @@ html[data-display-layout=mobile] .live-voice-heading{flex-wrap:wrap}html[data-di
 html[data-display-narrow=true] .visit-steps{gap:0}html[data-display-narrow=true] .visit-step{min-width:0;flex:1;flex-direction:column;align-items:center;text-align:center;padding:10px 2px;gap:6px;font-size:8px}html[data-display-narrow=true] .visit-step span{width:100%;overflow-wrap:anywhere}html[data-display-narrow=true] .visit-step small{display:none}
 html[data-display-narrow=true] .display-panel{max-height:calc(var(--display-vh,100dvh) - 24px)}html:not([data-display-layout=mobile]) .sidebar{height:var(--display-vh,100dvh)}
 @media print{html{zoom:1!important}.display-trigger,.display-panel,.display-floating{display:none!important}}
+/* A small, persistent scope label on the published demonstration. */
+.demo-deployment-badge{position:fixed;bottom:8px;left:50%;transform:translateX(-50%);z-index:40;padding:4px 12px;border:1px solid var(--border,rgba(180,180,180,.2));border-radius:20px;background:var(--surface,#252323);color:var(--text-muted,#bdb8ae);font:10px/1.4 sans-serif;white-space:nowrap;pointer-events:none;box-shadow:0 2px 12px #0001}

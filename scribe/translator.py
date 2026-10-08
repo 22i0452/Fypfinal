@@ -59,7 +59,7 @@ class MedicalTranslator:
         for index, entry in enumerate(diarized_conversation,1):
             uid=str(entry.get('utterance_id') or f'U{index}')
             original=str(entry.get('original_text') or entry.get('text') or '')
-            text,rows=protect(original,uid,context=entry.get('medicine_context',False))
+            text,rows=protect(original,uid,context=entry.get('medicine_context',False),analysis=initial_matches.get(uid))
             protected_by_id[uid]=rows
             protected_source.append({**entry,'utterance_id':uid,'original_text':text,'text':text})
         formatted_convo = self._format_conversation(protected_source)
@@ -98,24 +98,24 @@ Translate each entry to English and keep speaker labels unchanged.
                     if candidate is None and not rows and index<=len(translated) and isinstance(translated[index-1],dict):candidate=translated[index-1]
                     english=restore(str((candidate or {}).get('text') or ''),rows)
                     source=str(original.get('original_text') or original.get('text') or '')
-                    issues=translation_issues(source,english,rows)
+                    issues=translation_issues(source,english,rows,analysis=initial_matches.get(uid))
                     if not english or issues:
                         # Keep the evidence rather than publishing a fluent wrong
                         # medicine. The existing turn editor can resolve it.
                         english='[Translation requires review] '+source
                         if rows:failed.append({'utterance_id':uid,'speaker':original.get('speaker','Unknown'),
                             'original':next(entry['text'] for entry in protected_source if entry['utterance_id']==uid)})
-                    safe.append({'utterance_id':uid,'text':english,'medicine_checks':check_turn(source,english,context=original.get('medicine_context',False)),'translation_issues':issues})
+                    safe.append({'utterance_id':uid,'text':english,'medicine_checks':check_turn(source,english,context=original.get('medicine_context',False),analysis=initial_matches.get(uid)),'translation_issues':issues})
                 if failed:
-                    repaired=self._repair_medicine_translation(failed,patient_ref,patient_context)
+                    repaired=self._repair_medicine_translation(failed,patient_ref,patient_context,protected_source)
                     originals={str(item.get('utterance_id') or f'U{i}'):item for i,item in enumerate(diarized_conversation,1)}
                     for item in safe:
                         uid=item['utterance_id']
                         if uid not in repaired:continue
                         english=restore(repaired[uid],protected_by_id[uid])
                         source=str(originals[uid].get('original_text') or originals[uid].get('text') or '')
-                        if english and not translation_issues(source,english,protected_by_id[uid]):
-                            item.update(text=english,translation_issues=[],medicine_checks=check_turn(source,english,context=originals[uid].get('medicine_context',False)))
+                        if english and not translation_issues(source,english,protected_by_id[uid],analysis=initial_matches.get(uid)):
+                            item.update(text=english,translation_issues=[],medicine_checks=check_turn(source,english,context=originals[uid].get('medicine_context',False),analysis=initial_matches.get(uid)))
                 normalized = self._preserve_identity(diarized_conversation, safe)
                 if normalized:
                     self._attach_matches(normalized,initial_matches)
@@ -134,14 +134,18 @@ Translate each entry to English and keep speaker labels unchanged.
             result=matches.get(item['utterance_id'],{})
             result['fingerprint']=fingerprint(item['original_text'],item['clinical_english'])
             item['medicine_suggestions']=result
+            item['medicine_checks']=check_turn(item['original_text'],item['clinical_english'],context=item.get('medicine_context',False),analysis=result)
 
-    def _repair_medicine_translation(self,failed,patient_ref,patient_context):
+    def _repair_medicine_translation(self,failed,patient_ref,patient_context,complete_conversation):
         import json
         try:
             result=get_gateway().chat_json(task_type='medicine_translation_repair',actor=self._actor,
                 patient_ref=patient_ref,patient_context=patient_context or {},temperature=0,max_tokens=3000,
                 messages=[{'role':'system','content':_TRANSLATION_SYSTEM_PROMPT+'\nAn earlier translation failed medicine preservation. Translate again from the ORIGINAL protected text. Copy every medicine token exactly, preserve dose and negation. Do not copy an incorrect previous English name.'},
-                          {'role':'user','content':json.dumps({'conversation':failed},ensure_ascii=False)}])
+                          {'role':'user','content':json.dumps({'conversation':failed,
+                              'complete_protected_conversation':[{key:entry.get(key) for key in
+                                  ('utterance_id','speaker','speaker_relation','addressed_to','original_text','text')}
+                                  for entry in complete_conversation]},ensure_ascii=False)}])
             rows=result.get('conversation',[])
             if not isinstance(rows,list):return {}
             allowed={entry['utterance_id'] for entry in failed}
@@ -156,6 +160,8 @@ Translate each entry to English and keep speaker labels unchanged.
             speaker = str(entry.get("speaker", "Unknown"))
             if entry.get("speaker_relation"):
                 speaker = f"{speaker} ({entry['speaker_relation']})"
+            if entry.get('addressed_to'):
+                speaker += ' -> ' + str(entry['addressed_to'])
             text = str(entry.get("original_text") or entry.get("text", "")).strip()
             if text:
                 lines.append(f'{utterance_id} {speaker}: "{text}"')

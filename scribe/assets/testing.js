@@ -25,6 +25,7 @@ function renderReport(){
   document.getElementById('liveTestConsent').hidden=mode!=='live_text';
   document.getElementById('testModeNote').textContent=mode==='live_text'?'Real provider requests. Fictional text only.':'No dataset or API credits required.';
   document.getElementById('exportTests').disabled=!reportRun;
+  document.getElementById('exportTestsPdf').disabled=!reportRun;
   const totals=reportRun?.totals;
   document.getElementById('testPassed').textContent=totals?.passed??'—';
   document.getElementById('testFailed').textContent=totals?totals.failed+totals.error:'—';
@@ -41,7 +42,7 @@ function renderReport(){
 function renderScenarioList(){
   const filter=document.getElementById('testFilter').value;
   const rows=reportRows().filter(item=>filter==='all'||filter==='attention'&&['FAILED','ERROR'].includes(item.status)||filter==='passed'&&item.status==='PASSED'||filter==='unevaluated'&&['PENDING','RUNNING','SKIPPED'].includes(item.status));
-  const icons={Reception:'headset',Appointments:'calendar-check',Consultation:'audio-lines',SOAP:'file-text',Coding:'scan-line',Access:'shield-check','Live text':'radio'};
+  const icons={Medicines:'pill',Reception:'headset',Appointments:'calendar-check',Consultation:'audio-lines',SOAP:'file-text',Coding:'scan-line',Access:'shield-check','Live text':'radio'};
   document.getElementById('scenarioList').innerHTML=rows.length?rows.map(item=>`<button class="scenario-row ${item.status.toLowerCase()} ${item.id===reportCaseId?'selected':''}" type="button" data-scenario="${testEscape(item.id)}" aria-pressed="${item.id===reportCaseId}">${testIcon(icons[item.category]||'flask-conical')}<span class="scenario-copy"><strong>${testEscape(item.title)}</strong><small>${testEscape(item.category)}${item.duration_ms!=null?' · '+testTime(item.duration_ms):''}</small></span>${testBadge(item.status)}</button>`).join(''):'<p class="test-filter-empty">No scenarios match this filter.</p>';
 }
 function renderScenarioDetail(){
@@ -118,6 +119,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   document.getElementById('testHistory').addEventListener('change',event=>selectReport(event.target.value));
   document.getElementById('scenarioList').addEventListener('click',event=>{const button=event.target.closest('[data-scenario]');if(button){reportCaseId=button.dataset.scenario;renderScenarioList();renderScenarioDetail();testIcons();if(innerWidth<=650)document.getElementById('testDetail').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'instant':'smooth',block:'start'});}});
   document.getElementById('exportTests').addEventListener('click',()=>{if(reportRun)location.assign('/api/demo-testing/runs/'+encodeURIComponent(reportRun.run_id)+'/export');});
+  document.getElementById('exportTestsPdf').addEventListener('click',()=>{if(reportRun)location.assign('/api/demo-testing/runs/'+encodeURIComponent(reportRun.run_id)+'/export.pdf');});
   testIcons();
   document.getElementById('retryTests').addEventListener('click',loadReportConfiguration);
   await loadReportConfiguration();

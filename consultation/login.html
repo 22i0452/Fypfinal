@@ -164,7 +164,7 @@
           "Signing in..."
         );
         const requestedNext = new URLSearchParams(window.location.search).get('next');
-        window.location.assign(requestedNext === '/testing' ? '/testing' : '/workspace');
+        window.location.assign(['/testing','/receptionist'].includes(requestedNext) ? requestedNext : '/workspace');
       } catch (error) {
         showMessage(error.message || "Unable to sign in.", "error");
       }
@@ -202,6 +202,17 @@
 
     const requestedMode = new URLSearchParams(window.location.search).get("mode");
     if (requestedMode === "signup") setMode("signup");
+    fetch('/api/demo-access').then(response=>response.json()).then(config=>{
+      if(!config.demo)return;
+      setMode('login'); signupTab.hidden=true;
+      document.getElementById('openSignup').hidden=true;
+      const panel=document.createElement('div');panel.className='auth-message';
+      panel.style.cssText='display:block;margin-top:20px;line-height:1.7';
+      const title=document.createElement('strong');title.textContent='FYP demo · fictional patients';panel.append(title);
+      const copy=document.createElement('p');copy.textContent='Choose a saved doctor. Use your configured demo password.';panel.append(copy);
+      config.doctors.forEach(doctor=>{const button=document.createElement('button');button.type='button';button.className='note-action';button.style.margin='4px';button.textContent=doctor.name;button.onclick=()=>{document.getElementById('loginEmail').value=doctor.email;document.getElementById('loginPassword').focus();};panel.append(button);});
+      document.getElementById('loginForm').append(panel);
+    }).catch(()=>{});
   </script>
 <script src="/assets/vendor/lucide.min.js"></script><script src="/assets/icons.js"></script></body>
 </html>

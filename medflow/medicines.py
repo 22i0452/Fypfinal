@@ -77,8 +77,58 @@ def mentions(text,*,context=False):
     return sorted(chosen,key=lambda v:v['start'])
 
 
-def protect(text, namespace='turn',*,context=False):
+def effective_mentions(text, *, context=False, analysis=None, review=None):
+    """One source-bound interpretation shared by translation, review and SOAP."""
     rows=mentions(text,context=context)
+    from medflow.medicine_context import source_fingerprint
+    if not analysis or analysis.get('source_fingerprint') != source_fingerprint(text):
+        return rows
+    entities=analysis.get('entities',[])
+    curated={row['id'] for row in vocabulary()['entries'] if row['status']=='catalog_name'}
+    confirmed=(review or {}).get('spellings',{})
+    excluded=[entity for entity in entities if entity.get('kind')=='non_medical']
+    rows=[row for row in rows if row['catalog_id'] in curated or row['source'] in confirmed or not any(
+        entity['start']<=row['start'] and row['end']<=entity['end'] for entity in excluded)]
+    for entity in entities:
+        if entity.get('kind') not in {'medicine','uncertain'}:continue
+        start,end=entity['start'],entity['end']
+        if text[start:end]!=entity['source']:continue
+        overlapping=[row for row in rows if start<row['end'] and row['start']<end]
+        if overlapping:
+            # Only join uncertain lexical fragments. Never broaden a known
+            # Panadol variant merely because an LLM supplied a wider span.
+            if any(row['status']=='catalog_name' for row in overlapping):continue
+            if any(row['start']<start or row['end']>end for row in overlapping):continue
+            rows=[row for row in rows if row not in overlapping]
+        rows.append({'source':entity['source'],'start':start,'end':end,
+                     'name':entity['source'],'catalog_id':None,'status':'context_candidate','source_url':None})
+    for row in rows:
+        proposal=next((item for item in analysis.get('mentions',[]) if item.get('start')==row['start']
+                       and item.get('end')==row['end'] and item.get('source')==row['source']),None)
+        if not proposal or proposal.get('status')!='suggested':continue
+        selected=next((choice for choice in proposal.get('candidates',[])
+                       if choice['catalog_id']==proposal.get('selected_catalog_id')),None)
+        if selected:
+            row.update(suggested_english=selected['name'],suggested_catalog_id=selected['catalog_id'])
+    return sorted(rows,key=lambda row:row['start'])
+
+
+def expected_name(row):
+    return row.get('confirmed_english') or row.get('suggested_english') or (
+        row['name'] if row['status']=='catalog_name' else row['source'])
+
+
+def nonmedicine_ids(source, analysis):
+    from medflow.medicine_context import source_fingerprint
+    if not analysis or analysis.get('source_fingerprint') != source_fingerprint(source):return set()
+    curated={row['id'] for row in vocabulary()['entries'] if row['status']=='catalog_name'}
+    excluded=[entity for entity in analysis.get('entities',[]) if entity.get('kind')=='non_medical']
+    return {row['catalog_id'] for row in mentions(source) if row['catalog_id'] and row['catalog_id'] not in curated
+            and any(entity['start']<=row['start'] and row['end']<=entity['end'] for entity in excluded)}
+
+
+def protect(text, namespace='turn',*,context=False,analysis=None):
+    rows=effective_mentions(text,context=context,analysis=analysis)
     prefix='MF_MED_'+hashlib.sha256((namespace+':'+text).encode()).hexdigest()[:10]
     for index,item in enumerate(rows): item['token']=prefix+'_'+str(index)
     protected=text
@@ -88,7 +138,7 @@ def protect(text, namespace='turn',*,context=False):
 
 def restore(text, rows, *, english=True):
     for item in rows:
-        value=item['name'] if english and item['status']=='catalog_name' else item['source']
+        value=expected_name(item) if english else item['source']
         text=text.replace(item['token'],value)
     return text
 
@@ -103,23 +153,24 @@ def normalized_doses(text):
     return Counter(result)
 
 
-def translation_issues(source, target, rows=None):
+def translation_issues(source, target, rows=None, *, analysis=None):
     rows=mentions(source) if rows is None else rows
     issues=[]
-    expected=Counter(row['name'] if row['status']=='catalog_name' else row['source'] for row in rows)
+    expected=Counter(expected_name(row) for row in rows)
     for name,count in expected.items():
-        # Unverified catalogue transliterations can be confirmed by a clinician,
-        # but automatic translation still preserves the literal source spelling.
+        # Keep the source-bound catalogue proposal or clinician-approved name;
+        # an unrelated generic class is not an acceptable translation.
         if len(word_pattern(name).findall(target)) < count: issues.append('name_missing_or_changed:'+name)
-    source_ids={row['catalog_id'] for row in rows if row['catalog_id']}
-    if any(row['status']=='catalog_name' and row['catalog_id'] not in source_ids for row in mentions(target)):
+    source_ids={value for row in rows for value in (row.get('catalog_id'),row.get('suggested_catalog_id')) if value}
+    excluded_ids=nonmedicine_ids(source,analysis)
+    if any(row['status']=='catalog_name' and row['catalog_id'] not in source_ids | excluded_ids for row in mentions(target)):
         issues.append('medicine_introduced')
     if TOKEN_RE.search(target): issues.append('unresolved_medicine_token')
     if rows and normalized_doses(source)!=normalized_doses(target): issues.append('stated_dose_changed')
     if rows:
         target_rows=[]
         for row in rows:
-            name=row['name'] if row['status']=='catalog_name' else row['source']
+            name=expected_name(row)
             target_rows.extend({**row,'start':m.start(),'end':m.end()} for m in word_pattern(name).finditer(target))
         if linked_doses(source,rows)!=linked_doses(target,target_rows): issues.append('medicine_dose_link_changed')
     if rows and bool(NEGATION_RE.search(source)) != bool(NEGATION_RE.search(target)):
@@ -128,7 +179,7 @@ def translation_issues(source, target, rows=None):
         normalized_source=source
         names=[]
         for row in reversed(rows):
-            name=row['name'] if row['status']=='catalog_name' else row['source']
+            name=expected_name(row)
             names.append(name)
             normalized_source=normalized_source[:row['start']]+name+normalized_source[row['end']:]
         original_polarities=name_polarities(normalized_source,names)
@@ -142,9 +193,9 @@ def fingerprint(original, english):
     return hashlib.sha256((original+'\0'+english).encode()).hexdigest()
 
 
-def check_turn(original, english, review=None,*,context=False):
-    rows=mentions(original,context=context)
+def check_turn(original, english, review=None,*,context=False,analysis=None):
     checked=bool(review and review.get('fingerprint')==fingerprint(original,english))
+    rows=effective_mentions(original,context=context,analysis=analysis,review=review if checked else None)
     compared=[dict(row) for row in rows]
     # A clinician's explicit English spelling is permitted for an unverified name
     # only when the exact turn was reviewed; known brands can never disappear.
@@ -156,10 +207,12 @@ def check_turn(original, english, review=None,*,context=False):
                 row['confirmed_english']=spelling
                 for value in compared:
                     if value['start']==row['start']:
-                        value.update(name=spelling,status='catalog_name')
+                        value.update(name=spelling,confirmed_english=spelling,status='catalog_name')
+                        value.pop('suggested_english',None)
+                        value.pop('suggested_catalog_id',None)
                         matching=mentions(spelling)
                         if matching: value['catalog_id']=matching[0]['catalog_id']
-    issues=translation_issues(original,english,compared)
+    issues=translation_issues(original,english,compared,analysis=analysis)
     if rows and re.search(r'\[Translation (?:requires review|needed)\]',english,re.I): issues.append('translation_confirmation_required')
     if any(row['status']!='catalog_name' for row in rows) and not checked: issues.append('name_confirmation_required')
     return {'mentions':rows,'issues':list(dict.fromkeys(issues)),
@@ -167,16 +220,22 @@ def check_turn(original, english, review=None,*,context=False):
             'reviewed_by':review.get('reviewed_by') if checked else None}
 
 
-def clinician_review(original, english, spellings, actor_ref,*,context=False):
+def clinician_review(original, english, spellings, actor_ref,*,context=False,analysis=None):
     """Attest an exact revision; never use an acknowledgement to bypass known names."""
-    unknown={r['source'] for r in mentions(original,context=context) if r['status']!='catalog_name'}
+    unknown={r['source'] for r in effective_mentions(original,context=context,analysis=analysis) if r['status']!='catalog_name'}
+    spellings=dict(spellings)
+    # The translation already carries the catalogue-only proposal. Checking its
+    # spelling once is enough; no separate manual candidate action is required.
+    for row in effective_mentions(original,context=context,analysis=analysis):
+        if row.get('suggested_english') and row['source'] not in spellings and word_pattern(row['suggested_english']).search(english):
+            spellings[row['source']]=row['suggested_english']
     if any(key not in unknown or not isinstance(value,str) or not value.strip()
            or len(value)>100 or not word_pattern(value.strip()).search(english)
            for key,value in spellings.items()):
         raise ValueError('Each confirmed spelling must name an uncertain source mention and appear in the English turn.')
     review={'fingerprint':fingerprint(original,english),'reviewed_by':actor_ref,
             'spellings':{key:value.strip() for key,value in spellings.items()}}
-    if check_turn(original,english,review,context=context)['issues']:
+    if check_turn(original,english,review,context=context,analysis=analysis)['issues']:
         raise ValueError('Correct the medicine name, stated dose or negation in the English turn before confirming it.')
     return review
 
@@ -210,19 +269,20 @@ def name_polarities(text, names):
 
 def soap_issues(utterances, soap):
     """Check medication identity against the source, independently of source links."""
-    source=[]
+    source=[];excluded_ids=set()
     for item in utterances:
         row=item if isinstance(item,dict) else item.model_dump(mode='json')
         text=row.get('clinical_english') or row.get('text') or row.get('original_text') or ''
-        checked=check_turn(row.get('original_text') or text,text,row.get('medicine_review'),context=row.get('medicine_context',False))
-        names=[r.get('confirmed_english') or (r['name'] if r['status']=='catalog_name' else r['source']) for r in checked['mentions']]
+        excluded_ids.update(nonmedicine_ids(row.get('original_text') or text,row.get('medicine_suggestions')))
+        checked=check_turn(row.get('original_text') or text,text,row.get('medicine_review'),context=row.get('medicine_context',False),analysis=row.get('medicine_suggestions'))
+        names=[expected_name(r) for r in checked['mentions']]
         source.append((text,names))
     text='\n'.join(str(soap.get(section,'') or '') for section in ('subjective','objective','assessment','plan'))
     expected={name for _,names in source for name in names}
     expected_spellings={name.casefold() for name in expected}
     issues=['soap_medicine_missing:'+name for name in sorted(expected) if not word_pattern(name).search(text)]
     for row in mentions(text):
-        if row['status']=='catalog_name' and row['name'].casefold() not in expected_spellings:
+        if row['status']=='catalog_name' and row['name'].casefold() not in expected_spellings and row['catalog_id'] not in excluded_ids:
             issues.append('soap_medicine_introduced:'+row['name'])
     # A named medicine's stated dose must remain attached to that same name.
     target_rows=[{'start':m.start(),'end':m.end(),'name':name} for name in expected for m in word_pattern(name).finditer(text)]
@@ -243,12 +303,15 @@ def soap_issues(utterances, soap):
 
 
 def report(utterances):
-    checks=[]
+    checks=[];context_unavailable=[]
     for item in utterances:
         row=item if isinstance(item,dict) else item.model_dump(mode='json')
-        checked=check_turn(row.get('original_text') or row.get('text') or '',row.get('clinical_english') or row.get('text') or '',row.get('medicine_review'),context=row.get('medicine_context',False))
+        if row.get('medicine_suggestions',{}).get('context_status')=='llm_unavailable':
+            context_unavailable.append(row['utterance_id'])
+        checked=check_turn(row.get('original_text') or row.get('text') or '',row.get('clinical_english') or row.get('text') or '',row.get('medicine_review'),context=row.get('medicine_context',False),analysis=row.get('medicine_suggestions'))
         if checked['mentions'] or checked['issues']: checks.append({'utterance_id':row['utterance_id'],**checked})
     return {'checks':checks,'requires_review':any(c['issues'] for c in checks),'catalog_version':vocabulary()['version'],
+            'context_unavailable_turns':context_unavailable,
             'scope':'Name/dose/negation preservation checks. Not medicine identification, calibrated confidence or clinical correctness.'}
 
 
