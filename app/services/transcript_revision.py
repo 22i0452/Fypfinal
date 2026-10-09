@@ -1,5 +1,5 @@
 """Clinician role corrections create a new transcript and draft version on the same note."""
-from medflow.domain.enums import NoteStatus, Speaker, WorkflowState
+from medflow.domain.enums import ConsentType, NoteStatus, Speaker, WorkflowState
 from medflow.domain.ids import new_id
 from medflow.domain.models import EvidenceReference, SOAPNoteVersion, TranscriptRecord, utc_now
 from app.services.note_lifecycle_service import NoteLifecycleError
@@ -58,7 +58,14 @@ def revise_roles(container, note_id, actor, expected_version, corrections):
     return service.payload(updated, revised, patient_name=patient.name)
 
 
-def revise_relevance(container, note_id, actor, expected_version, corrections):
+def _require_rebuild_consent(container, encounter_id, actor):
+    decisions = container.consent_service.latest_decisions(encounter_id, actor=actor)
+    if any(not decisions.get(kind) or not decisions[kind].is_active
+           for kind in (ConsentType.AI_TRANSCRIPTION, ConsentType.AI_DOCUMENTATION)):
+        raise NoteLifecycleError('CONSENT_REQUIRED', 'Record current AI permissions before rebuilding SOAP.')
+
+
+def revise_relevance(container, note_id, actor, expected_version, corrections, *, regenerate=False):
     """Keep source revisions and regenerate an unapproved draft after selection changes."""
     from app.services.conversation_relevance import apply_overrides
     from medflow.medicines import report as medicine_report
@@ -70,6 +77,8 @@ def revise_relevance(container, note_id, actor, expected_version, corrections):
         raise NoteLifecycleError('VERSION_CONFLICT', 'The note changed. Reload its source review.')
     if note.state == NoteStatus.APPROVED_BY_DOCTOR or not workflow or workflow.state in {WorkflowState.ENCOUNTER_COMPLETED, WorkflowState.CANCELLED}:
         raise NoteLifecycleError('INVALID_NOTE_STATE', 'Change documentation selection on an unapproved active draft.')
+    if regenerate:
+        _require_rebuild_consent(container, note.encounter_id, actor)
     source = container.transcript_repository.get(current.transcript_id) if current.transcript_id else None
     if not source or source.patient_id != note.patient_id or source.encounter_id != note.encounter_id:
         raise NoteLifecycleError('TRANSCRIPT_NOT_FOUND', 'The source transcript is unavailable.')
@@ -91,16 +100,21 @@ def revise_relevance(container, note_id, actor, expected_version, corrections):
     legacy = container.documentation_service._components()[2].generate(container.documentation_service._patient_context(patient),
         [container.documentation_service.utterance_payload(t, translated=True) for t in selected],
         template={'template_id': template.template_id, 'name': template.name, 'sections': template.sections})
+    if regenerate and legacy.get('generation_mode')=='TRANSCRIPT_FALLBACK':
+        raise NoteLifecycleError('SOAP_FAILED','The AI summary could not be validated. Your existing draft and reviewed transcript are preserved; retry rebuilding SOAP.')
     soap = container.documentation_service.build_structured_soap(note_id, legacy, transcript.model_copy(update={'utterances': selected}))
     latest, _ = service.get(note_id, actor=actor)
-    if latest.current_version_id != current.note_version_id or latest.state == NoteStatus.APPROVED_BY_DOCTOR:
+    latest_workflow=service._workflow_for_note(latest)
+    if latest.current_version_id != current.note_version_id or latest.state == NoteStatus.APPROVED_BY_DOCTOR or not latest_workflow or latest_workflow.state in {WorkflowState.ENCOUNTER_COMPLETED,WorkflowState.CANCELLED}:
         raise NoteLifecycleError('VERSION_CONFLICT', 'The note changed during generation. Reload and retry.')
+    if regenerate:
+        _require_rebuild_consent(container, note.encounter_id, actor)
     revised = service._new_version(latest, current, status=NoteStatus.AI_DRAFT, soap=soap, actor=actor,
-        change_reason='Doctor changed documentation selection; SOAP regenerated')
+        change_reason='Doctor requested SOAP regeneration from reviewed source' if regenerate else 'Doctor changed documentation selection; SOAP regenerated')
     revised.transcript_id = transcript_id; revised.prescription = None
     container.transcript_repository.save(transcript); container.note_repository.save_version(revised)
     updated = latest.model_copy(update={'current_version_id': revised.note_version_id, 'state': NoteStatus.AI_DRAFT,
         'approved_at': None, 'approved_by_doctor_id': None, 'updated_at': utc_now()})
     container.note_repository.save(updated)
-    service._audit(updated, actor, 'documentation_selection_saved', {'version': revised.version_number, 'changed_turns': len(corrections)})
+    service._audit(updated, actor, 'soap_regenerated' if regenerate else 'documentation_selection_saved', {'version': revised.version_number, 'changed_turns': len(corrections)})
     return service.payload(updated, revised, patient_name=patient.name)

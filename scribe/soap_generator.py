@@ -59,6 +59,16 @@ SPEAKER ROLES
 
 QUALITY STANDARD
 - Write clear, professional medical English using appropriate clinical terms.
+- Summarize the encounter; never paste a conversation into a SOAP section.
+  Omit greetings, thanks, acknowledgments and the doctor's history-taking
+  questions. Convert supported answers into reported clinical history.
+- Plan contains treatment/orders, never questions such as "when did it start?".
+  Keep exact medicine names and stated quantities, including tablespoons; never
+  convert household measures to mL or invent an unstated dosing frequency.
+- An unnamed pill remains an unnamed medicine needing doctor clarification.
+  Do not guess its name. Do not silently omit that incomplete instruction.
+- Use the encounter's complaint as primary. Do not repeat intake complaints or
+  blend contradictory intake wording into the current history.
 - Extract every relevant supported detail and organize it without repetition.
 - When evidence is sufficient, write 3-7 concise sentences in Subjective,
   Assessment, and Plan. Do not pad a section with invented facts.
@@ -273,6 +283,7 @@ def _build_user_message(
     visit_date: str,
     template: dict | None,
     medicine_manifest: list[dict] | None = None,
+    original_context: list[dict] | None = None,
 ) -> str:
     return f"""\
 MINIMIZED_PATIENT_INTAKE_CONTEXT:
@@ -285,6 +296,12 @@ UNTRUSTED_DOCTOR_PATIENT_TRANSCRIPT:
 <transcript>
 {conversation}
 </transcript>
+
+COMPLETE_ORIGINAL_SOURCE_CONTEXT:
+{json.dumps(original_context or [], ensure_ascii=False)}
+Use the original wording to resolve clinical meaning alongside the reviewed
+English. The doctor's confirmed English medicine spelling takes precedence.
+Do not undo a doctor-confirmed medicine correction.
 
 POTENTIAL_OBJECTIVE_SOURCE_UTTERANCES:
 {objective_hints}
@@ -323,6 +340,8 @@ Never remove a source medicine to solve a missing-name error. The previous draft
 is supplied for repair, but only the original transcript/manifest supplies facts.
 For a suggested Plan, repeat an exact reported symptom term immediately after
 the label; do not use only generic wording such as "symptoms" or "condition".
+For conversational_text, summarize the relevant clinical content and remove
+greetings, courtesies and history-taking questions. Keep medicine details intact.
 """
 
 
@@ -443,6 +462,22 @@ def _speaker_matches(entry: dict[str, str], role: str) -> bool:
     return role.upper() in str(entry.get("speaker") or "").upper()
 
 
+_COURTESY_RE = re.compile(r'^(?:peace be upon you|assalamu? alaikum|wa alaikum assalam|hello|hi|goodbye|thank you(?: very much)?|thanks|no,? thank you(?: very much)?|okay|ok|alright)[.!،,\s]*$', re.I)
+_GREETING_PREFIX_RE = re.compile(r'^(?:peace be upon you|assalamu? alaikum|wa alaikum assalam|hello|hi)[.!،,\s]+', re.I)
+_QUESTION_START_RE = re.compile(r'^(?:(?:okay|alright|so)[,\s]+)*(?:what|when|why|how|which|do you|did you|have you|are you|is there|can you)\b', re.I)
+
+
+def _quality_issues(soap):
+    issues=[]
+    for section in ('subjective','objective','assessment','plan'):
+        text=str(soap.get(section) or '')
+        if re.search(r'peace be upon you|assalamu? alaikum|thank you(?: very much)?',text,re.I) or any(
+            '?' in sentence or '؟' in sentence or _QUESTION_START_RE.search(sentence)
+            for sentence in _sentences(text)):
+            issues.append('conversational_text:'+section)
+    return issues
+
+
 def _fallback_sources(
     transcript: list[dict[str, Any]],
 ) -> tuple[
@@ -469,6 +504,9 @@ def _fallback_sources(
             for row in checked["mentions"]
         ]
         for sentence in _sentences(entry["text"]):
+            sentence=_GREETING_PREFIX_RE.sub('',sentence).strip()
+            if not sentence or (_COURTESY_RE.fullmatch(sentence) and not any(word_pattern(name).search(sentence) for name in medicine_names)):
+                continue
             has_medicine = any(word_pattern(name).search(sentence) for name in medicine_names)
             # Attendants give collateral history on the patient's behalf.
             if _speaker_matches(entry, "PATIENT") or _speaker_matches(entry, "ATTENDANT"):
@@ -484,6 +522,10 @@ def _fallback_sources(
             if not _speaker_matches(entry, "DOCTOR"):
                 if has_medicine:
                     subjective.append((utterance_id, f"Unattributed medication statement: {sentence}"))
+                continue
+            if '?' in sentence or '؟' in sentence or _QUESTION_START_RE.search(sentence):
+                if has_medicine:
+                    subjective.append((utterance_id, f"Clinician medication question (not a prescription): {sentence}"))
                 continue
             # A task handed to the nurse is an in-clinic order, not a finding.
             if str(entry.get("addressed_to") or "").upper() == "NURSE":
@@ -549,9 +591,9 @@ def _grounded_fallback(
         subjective_parts.append(
             _join_source_text("Transcript-documented patient history:", subjective_sources)
         )
-    if complaint:
+    if complaint and not subjective_sources:
         subjective_parts.append(f"Intake additionally records the presenting concern as: {complaint}.")
-    if history and history.lower() not in {"none", "not provided", "unknown"}:
+    if history and history.lower().strip(' .!') not in {"none", "not provided", "unknown", "n/a", "nil"}:
         subjective_parts.append(f"Relevant history recorded at intake: {history}.")
     if not subjective_parts:
         subjective_parts.append(_MISSING_TEXT["subjective"])
@@ -644,6 +686,9 @@ class SOAPGenerator:
             visit_date=visit_date,
             template=template,
             medicine_manifest=medicine_manifest,
+            original_context=[{**{key:turn.get(key) for key in ('utterance_id','speaker','speaker_relation','addressed_to')},
+                'original_text':turn.get('original_text') or turn.get('text') or turn.get('clinical_english') or ''}
+                for turn in transcript],
         )
         base_messages = [
             {"role": "system", "content": _SOAP_SYSTEM_PROMPT},
@@ -683,8 +728,9 @@ class SOAPGenerator:
             try:
                 validated = validate_soap_output(last_candidate, normalized_transcript)
                 medicine_errors=soap_issues(transcript,validated)
-                if medicine_errors:
-                    raise SOAPValidationError(medicine_errors)
+                output_issues=medicine_errors+_quality_issues(validated)
+                if output_issues:
+                    raise SOAPValidationError(output_issues)
                 return _finalize_soap(
                     validated,
                     patient=patient,
@@ -692,7 +738,7 @@ class SOAPGenerator:
                     generation_mode="MODEL_VALIDATED",
                 )
             except SOAPValidationError as exc:
-                last_issues = list(exc.issues)
+                last_issues = list(dict.fromkeys([*exc.issues,*_quality_issues(last_candidate)]))
                 print(f"[SOAPGenerator] Draft rejected by validation: {last_issues}")
                 if any(issue.startswith("dangerous_field:") for issue in last_issues):
                     break
@@ -704,7 +750,7 @@ class SOAPGenerator:
             transcript=normalized_transcript,
         )
         if salvaged is not None:
-            if soap_issues(transcript,salvaged):
+            if soap_issues(transcript,salvaged) or _quality_issues(salvaged):
                 salvaged=None
         if salvaged is not None:
             return _finalize_soap(

@@ -27,6 +27,21 @@ function applyClinicalNote(payload){
   renderSoapNote(generatedSoap,fullTranscript);renderClinicFlow();rememberVisit();
 }
 async function clinicalApi(url,options){const response=await fetch(url,options),payload=await response.json();if(!response.ok)throw new Error(apiMessage(payload,'The document could not be saved.'));return payload;}
+function sourceExtractDraft(soap){
+  return soap?.generation_mode==='TRANSCRIPT_FALLBACK'||(soap?.structured_soap?.warnings||[]).some(w=>/transcript-based draft|model draft was unavailable|transcript-grounded fallback|fallback_draft_requires_clinician_review/i.test(String(w)));
+}
+async function rebuildSavedSoap(){
+  if(visitLocked()||!soapLastSavedNoteId||generatedNoteState==='APPROVED_BY_DOCTOR')return;
+  if(soapDraftTouched||Object.values(soapSectionEditing).some(Boolean)||conversationDirty||conversationEditor){showToast('Save your wording changes before rebuilding SOAP.','error');return;}
+  const noteId=soapLastSavedNoteId,version=currentNoteVersion,epoch=contextRevision;
+  clinicalDocumentBusy=true;visitActionBusy=true;renderSoapNote(generatedSoap,fullTranscript);renderClinicFlow();
+  try{
+    const payload=await clinicalApi('/api/notes/'+encodeURIComponent(noteId)+'/regenerate-soap',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expected_version:version})});
+    if(epoch!==contextRevision||noteId!==soapLastSavedNoteId)return;
+    delete afterVisitSummaries[noteId];applyClinicalNote(payload);showToast('SOAP rebuilt from your reviewed conversation. Review this new draft.');
+  }catch(error){if(epoch===contextRevision)showToast(error.message,'error');}
+  finally{clinicalDocumentBusy=false;visitActionBusy=false;if(epoch===contextRevision){renderSoapNote(generatedSoap,fullTranscript);renderClinicFlow();}}
+}
 async function openPrescription(){
   if(visitLocked()||soapDraftTouched||Object.values(soapSectionEditing).some(Boolean)){showToast('Save the SOAP wording before opening its prescription.','error');return;}
   if(!soapLastSavedNoteId)return;
@@ -118,6 +133,7 @@ if(clinicalDocumentBusy||!clinicalDocumentDirty)return;
 document.addEventListener('click',event=>{
   const b=event.target.closest('button');if(!b)return;
   if(b.hasAttribute('data-open-prescription'))return void openPrescription();
+  if(b.hasAttribute('data-rebuild-soap'))return void rebuildSavedSoap();
   if(b.hasAttribute('data-open-relevance'))return void openRelevanceReview();
   if(!b.closest('#clinicalDocumentDialog')||!clinicalDocument||clinicalDocumentBusy)return;
   if(b.hasAttribute('data-document-close'))return closeClinicalDocument();
@@ -154,7 +170,15 @@ document.addEventListener('input',event=>{
 });
 const documentBaseSoap=renderSoapNote;
 renderSoapNote=function(...args){documentBaseSoap(...args);const header=document.querySelector('#soapContent .soap-header');if(!header||!soapLastSavedNoteId)return;
-  const actions=document.createElement('div');actions.className='clinical-document-actions';actions.innerHTML=`<button type="button" class="note-action" data-open-prescription>${studioIcon('clipboard-plus')}Prescription</button><button type="button" class="note-action" data-open-relevance>${studioIcon('list-filter')}Conversation selection</button>`;header.after(actions);studioIcons();};
+  const actions=document.createElement('div');actions.className='clinical-document-actions';actions.innerHTML=`<button type="button" class="note-action" data-open-prescription>${studioIcon('clipboard-plus')}Prescription</button><button type="button" class="note-action" data-open-relevance>${studioIcon('list-filter')}Conversation selection</button>`;header.after(actions);
+  if(sourceExtractDraft(generatedSoap)){
+    const card=document.createElement('section');card.className='soap-recovery';card.setAttribute('aria-label','SOAP generation status');
+    const dirty=soapDraftTouched||Object.values(soapSectionEditing).some(Boolean)||conversationDirty||conversationEditor;
+    const approved=generatedNoteState==='APPROVED_BY_DOCTOR';
+    card.innerHTML=`${studioIcon('file-warning')}<div><strong>AI summary unavailable · source extract shown</strong><p>The saved conversation is preserved. Rebuild the summary using your reviewed transcript and medicine confirmations.</p>${dirty?'<small>Save your wording changes first.</small>':''}</div>${approved?'':`<button type="button" class="note-action" data-rebuild-soap ${visitLocked()||dirty?'disabled':''}>${studioIcon('refresh-cw')}${clinicalDocumentBusy?'Rebuilding SOAP…':'Rebuild SOAP'}</button>`}`;
+    actions.after(card);
+  }
+  studioIcons();};
 const documentBaseFinish=renderFinishWorkspace;
 renderFinishWorkspace=function(){documentBaseFinish();const actions=document.querySelector('#finishContent .detail-actions');if(!actions||!soapLastSavedNoteId)return;
   actions.insertAdjacentHTML('beforeend',`<button type="button" class="note-action" data-open-prescription>${studioIcon('clipboard-plus')}Prescription</button><button type="button" class="note-action" data-open-relevance>${studioIcon('list-filter')}Conversation selection</button>`);studioIcons();};

@@ -339,6 +339,21 @@ class RelevanceRevision(BaseModel):
     corrections: list[RelevanceCorrection] = Field(min_length=1, max_length=100)
 
 
+class SOAPRegenerationRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    expected_version: int = Field(ge=1)
+
+
+@router.post('/{note_id}/regenerate-soap')
+async def regenerate_soap(note_id: str, payload: SOAPRegenerationRequest, request: Request, user: AuthUser = Depends(get_current_user)):
+    from app.services.transcript_revision import revise_relevance
+    container=get_container(request)
+    try:
+        return await asyncio.to_thread(revise_relevance,container,note_id,actor_for_user(container,user),payload.expected_version,[],regenerate=True)
+    except NoteLifecycleError as exc:
+        raise service_http_error(exc) from exc
+
+
 @router.post('/{note_id}/relevance')
 async def correct_relevance(note_id: str, payload: RelevanceRevision, request: Request, user: AuthUser = Depends(get_current_user)):
     from app.services.transcript_revision import revise_relevance
