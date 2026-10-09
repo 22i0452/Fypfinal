@@ -11,6 +11,13 @@ import unicodedata
 
 CATALOG_PATH = Path(__file__).resolve().parents[1] / 'app/data/medicine_vocabulary.json'
 TOKEN_RE = re.compile(r'MF_MED_[A-Fa-f0-9]{10}_\d+')
+# Any reserved identifier prefix is unresolved, including shortened, spaced or
+# partially copied identifiers. Only restore() may resolve an exact mapping.
+PLACEHOLDER_RE = re.compile(r'(?<!\w)MF[\s_-]*MED(?=$|[\s_:.…-])', re.I)
+
+
+def has_medicine_placeholder(text):
+    return bool(PLACEHOLDER_RE.search(str(text or '')))
 CONTEXT_RE = re.compile(r'(?<!\w)(?:medicine|medication|tablet|capsule|syrup|prescrib\w*|dawai|dawa|دوائی|دوا|دوائیں|گولی|گولیاں|کیپسول|شربت)(?!\w)', re.I)
 NEGATION_RE = re.compile(r"(?<!\w)(?:not|never|no|without|stop|stopped|avoid|don[’']?t|نہیں|نہ|مت|بند)(?!\w)", re.I)
 DOSE_RE = re.compile(r'(?<!\w)([\d۰-۹٠-٩]+(?:[.٫][\d۰-۹٠-٩]+)?)\s*(mg|mcg|g|ml|ملی\s*گرام|ملی\s*لیٹر|مائیکرو\s*گرام|گرام)(?!\w)', re.I)
@@ -165,7 +172,8 @@ def translation_issues(source, target, rows=None, *, analysis=None):
     excluded_ids=nonmedicine_ids(source,analysis)
     if any(row['status']=='catalog_name' and row['catalog_id'] not in source_ids | excluded_ids for row in mentions(target)):
         issues.append('medicine_introduced')
-    if TOKEN_RE.search(target): issues.append('unresolved_medicine_token')
+    if has_medicine_placeholder(target): issues.append('unresolved_medicine_token')
+    if has_medicine_placeholder(source): issues.append('source_medicine_placeholder')
     if rows and normalized_doses(source)!=normalized_doses(target): issues.append('stated_dose_changed')
     if rows:
         target_rows=[]
@@ -281,6 +289,9 @@ def soap_issues(utterances, soap):
     expected={name for _,names in source for name in names}
     expected_spellings={name.casefold() for name in expected}
     issues=['soap_medicine_missing:'+name for name in sorted(expected) if not word_pattern(name).search(text)]
+    if has_medicine_placeholder(text): issues.append('unresolved_medicine_token')
+    if any(has_medicine_placeholder(original) for original,_ in source):
+        issues.append('source_medicine_placeholder')
     for row in mentions(text):
         if row['status']=='catalog_name' and row['name'].casefold() not in expected_spellings and row['catalog_id'] not in excluded_ids:
             issues.append('soap_medicine_introduced:'+row['name'])

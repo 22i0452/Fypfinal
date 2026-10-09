@@ -9,7 +9,7 @@ from medflow.orchestration import WorkflowAction
 from security_guardrails import require_authorized
 from security_guardrails.telemetry import collect_provider_events
 from app.services.evidence_checks import note_evidence_report
-from medflow.medicines import report as medicine_report, clinician_review, check_turn
+from medflow.medicines import report as medicine_report, clinician_review, check_turn, has_medicine_placeholder
 from app.services.conversation_relevance import report as relevance_report
 
 
@@ -236,6 +236,58 @@ class ConsultationReviewService:
             if isinstance(exc, ConsultationReviewError):
                 raise
             raise ConsultationReviewError('SOAP_FAILED', 'SOAP generation failed. Retry from the saved transcript; no new recording is needed.') from exc
+
+    def repair_medicines(self, workflow_id, actor, revision, transcript_id):
+        """Recover a damaged saved checkpoint, preserving the previous revision."""
+        workflow = self.context(workflow_id, actor)
+        if workflow.note_id or workflow.state != WorkflowState.TRANSCRIPT_REVIEW:
+            raise ConsultationReviewError('INVALID_NOTE_STATE', 'Repair medicine wording before generating SOAP.')
+        source = self.c.transcript_repository.get(transcript_id)
+        if not source or source.patient_id != workflow.patient_id or source.encounter_id != workflow.encounter_id:
+            raise ConsultationReviewError('PATIENT_MISMATCH', 'The source does not belong to this encounter.')
+        broken = {t.utterance_id for t in source.utterances if has_medicine_placeholder(t.original_text) or has_medicine_placeholder(t.clinical_english)}
+        if not broken:
+            raise ConsultationReviewError('REPAIR_NOT_NEEDED', 'No unresolved medicine identifiers were found.')
+        rebuild = any(has_medicine_placeholder(t.original_text) for t in source.utterances)
+        if rebuild and (not source.raw_asr_text.strip() or has_medicine_placeholder(source.raw_asr_text)):
+            raise ConsultationReviewError('SOURCE_REVIEW_REQUIRED', 'The saved speech text cannot recover the medicine. Correct the original wording against the recording; no medicine will be guessed.')
+        claimed = self._claim(workflow_id, revision, transcript_id, 'EDITING', {'TRANSCRIPT_REVIEW', 'SOAP_FAILED'})
+        try:
+            new_transcript_id = new_id('TRN')
+            patient = self.c.patient_repository.get(workflow.patient_id)
+            if rebuild:
+                # Never map damaged placeholders by order. Start from the complete
+                # preserved ASR wording and reassign roles; old edits remain archived.
+                turns = self._trace_call(claimed, 'diarization', lambda: self.c.documentation_service.diarize(
+                    source.raw_asr_text, patient=patient, transcript_id=new_transcript_id),
+                    lambda result: {'utterances':[self.c.documentation_service.utterance_payload(t) for t in result], 'source_recovered':True})
+            else:
+                turns = [t.model_copy(update={'transcript_id':new_transcript_id}) for t in source.utterances]
+            translated = self._trace_call(claimed, 'translation', lambda: self.c.documentation_service.translate(turns, patient=patient),
+                lambda result: {'utterances':[self.c.documentation_service.utterance_payload(t,translated=True) for t in result]})
+            if any(has_medicine_placeholder(t.original_text) or has_medicine_placeholder(t.clinical_english) for t in translated):
+                raise ConsultationReviewError('SOURCE_REVIEW_REQUIRED', 'The source still needs correction; the previous revision is preserved.')
+            if any(t.clinical_english.startswith(('[Translation requires review]', '[Translation needed]'))
+                   for t in translated if rebuild or t.utterance_id in broken):
+                raise ConsultationReviewError('TRANSLATION_FAILED', 'The recovery model could not produce a source-preserving translation. The previous revision is preserved; retry repair or review the source.')
+            if not rebuild:
+                previous = {t.utterance_id:t for t in source.utterances}
+                # Repair only damaged English turns. Unaffected doctor wording,
+                # medicine confirmations and relevance decisions stay unchanged.
+                translated = [t if t.utterance_id in broken else previous[t.utterance_id].model_copy(
+                    update={'transcript_id':new_transcript_id}) for t in translated]
+            self.c.documentation_service.save_transcript(transcript_id=new_transcript_id,patient_id=workflow.patient_id,
+                encounter_id=workflow.encounter_id,utterances=translated,raw_asr_text=source.raw_asr_text,
+                source_transcript_id=source.source_transcript_id or source.transcript_id)
+            self._finish(workflow_id,claimed,status='TRANSCRIPT_REVIEW',revision=revision+1,transcript_id=new_transcript_id,
+                last_error='Recovered from original speech text. Review the new speaker roles and medicine suggestions.' if rebuild else '')
+            self.c.audit_service.record('medicine_wording_recovered',actor_ref=actor.ref,action='create_note_draft',
+                patient_ref=workflow.patient_id,resource_ref=new_transcript_id,result='allow',
+                metadata={'revision':revision+1,'source_rebuilt':rebuild,'affected_turn_count':len(broken)})
+        except Exception as exc:
+            self._finish(workflow_id,claimed,status='TRANSCRIPT_REVIEW',last_error=str(exc) if isinstance(exc,ConsultationReviewError) else 'Recovery interrupted. The previous transcript is preserved; retry repair.')
+            if isinstance(exc,ConsultationReviewError): raise
+            raise ConsultationReviewError('TRANSLATION_FAILED','Medicine recovery interrupted. Retry from the preserved transcript.') from exc
 
     def retry_translation(self, workflow_id, actor, revision, transcript_id):
         workflow = self.context(workflow_id, actor)

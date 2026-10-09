@@ -32,6 +32,8 @@ document.addEventListener('click',event=>{
   english.focus();
 });
 function medicineIssueLabel(issue){
+  if(issue==='unresolved_medicine_token')return 'Translation contains an unresolved medicine identifier. Recover the source wording.';
+  if(issue==='source_medicine_placeholder')return 'Original wording contains a damaged medicine identifier. Recover from saved speech text.';
   if(issue.startsWith('name_missing_or_changed:'))return 'English name missing or changed: '+issue.split(':').slice(1).join(':');
   if(issue.startsWith('soap_medicine_missing:'))return 'Name missing from SOAP: '+issue.split(':').slice(1).join(':');
   if(issue.includes('dose'))return 'Check the stated dose and its medicine.';
@@ -45,7 +47,7 @@ renderTranscript=function(...args){
   medicineBaseTranscript(...args);
   document.querySelectorAll('#transcriptBody [data-utterance-id]').forEach(node=>{
     const turn=fullTranscript.find(turn=>turn.utterance_id===node.dataset.utteranceId),check=turn?.medicine_checks;
-    if(!check?.mentions?.length)return;
+    if(!check || (!check.mentions?.length && !check.issues?.length))return;
     const local=Boolean(conversationEdits[turn.utterance_id]);
     const receipt=document.createElement('div');receipt.className='medicine-receipt'+(check.issues.length?' needs-review':'');
     receipt.innerHTML=`<div>${studioIcon('pill')}<strong>${local?'Medicine checks pending save':check.issues.length?'Medicine wording needs review':'Medicine names preserved'}</strong></div><div class="medicine-names">${check.mentions.map(row=>`<span><b dir="auto">${escHtml(row.source)}</b><span aria-hidden="true"> → </span>${escHtml(row.confirmed_english || (row.status==='catalog_name'?row.name:medicineSuggestedName(turn,row)))}</span>`).join('')}</div>${!local && check.issues.length?`<ul>${check.issues.map(issue=>`<li>${escHtml(medicineIssueLabel(issue))}</li>`).join('')}</ul>`:`<small>${local?'Save the corrected turn to refresh these checks.':check.reviewed_by?'Doctor reviewed this wording.':'Vocabulary match; hearing and clinical correctness still need doctor review.'}</small>`}`;
@@ -59,12 +61,27 @@ renderClinicFlow=function(...args){
     const report=conversationReview.medicine_report,bar=document.getElementById('conversationReviewBar');
     if(report?.checks?.length || report?.context_unavailable_turns?.length){const detail=document.createElement('p');detail.className='medicine-review-summary';detail.textContent=conversationDirty?'Medicine checks refresh when these corrections are saved.':report.context_unavailable_turns?.length?'Full-conversation medicine context check unavailable. Original wording is preserved; review the transcript.':report.requires_review?'Review flagged medicine turns before SOAP. Original wording is preserved.':'Medicine names checked against the original turns. Doctor review remains required.';bar.append(detail);}
     if(conversationReview.raw_asr_text){const original=document.createElement('details');original.className='medicine-raw-source';original.innerHTML=`<summary>Original speech-recognition text</summary><p dir="auto">${escHtml(conversationReview.raw_asr_text)}</p><small>Preserved before cleanup. This is recognized text, not verified audio.</small>`;bar.append(original);}
+    if(report?.checks?.some(turn=>turn.issues.some(issue=>['unresolved_medicine_token','source_medicine_placeholder'].includes(issue)))){
+      const repair=document.createElement('button');repair.type='button';repair.className='note-action';repair.dataset.repairMedicines='';repair.disabled=visitLocked()||conversationDirty||Boolean(conversationEditor);
+      repair.innerHTML=studioIcon('refresh-cw')+'Repair medicine wording';bar.append(repair);
+    }
     if(conversationReview.symptom_patterns)bar.insertAdjacentHTML('beforeend',symptomPatternMarkup(conversationReview.symptom_patterns,conversationDirty));
     if(report?.requires_review && !conversationDirty && !conversationEditor && conversationReview.status!=='TRANSLATION_FAILED')document.getElementById('visitNextBtn').innerHTML=escHtml('Review medicine wording')+studioIcon('pill');
   }
   if(visitStage==='review' && generatedSoap?.medicine_report?.soap_issues?.length && generatedNoteState==='REVIEW_REQUIRED' && !soapDraftTouched){const button=document.getElementById('visitNextBtn');button.disabled=true;button.title='Correct the medicine wording in SOAP, then save and review the corrected version.';}
   studioIcons();
 };
+document.addEventListener('click',async event=>{
+  if(!event.target.closest('[data-repair-medicines]')||visitLocked()||conversationDirty||conversationEditor||!conversationReview)return;
+  const epoch=contextRevision,workflowId=activeWorkflow.workflow_id,body={expected_revision:conversationReview.revision,transcript_id:conversationReview.transcript_id};
+  visitActionBusy=true;isProcessing=true;visitStage='processing';processSelected='translation';scheduleContextRefresh();renderClinicFlow();
+  try{
+    const response=await fetch('/api/workflows/'+encodeURIComponent(workflowId)+'/repair-medicines',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const payload=await response.json();if(!response.ok)throw new Error(apiMessage(payload,'Medicine recovery could not be completed.'));
+    if(epoch!==contextRevision)return;applyVisitContext(payload);showToast('Source recovered. Review the medicine suggestions and speaker roles.');
+  }catch(error){showToast(error.message,'error');try{await refreshActiveContext();}catch{scheduleContextRefresh();}}
+  finally{visitActionBusy=false;if(epoch===contextRevision){isProcessing=false;renderClinicFlow();rememberVisit();}}
+});
 const medicineBaseSoap=renderSoapNote;
 renderSoapNote=function(...args){
   medicineBaseSoap(...args);const issues=generatedSoap?.medicine_report?.soap_issues || [];

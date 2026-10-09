@@ -138,3 +138,39 @@ not live microphone accuracy or treatment correctness. The broader suite has
 existing environment limits: four legacy audio modules require unavailable
 `sounddevice`/`pygame`, and the receptionist assigned-doctor recovery test also
 fails on the unchanged prior commit. See the update test report for exact scope.
+
+## Damaged identifier recovery
+
+Translation receives the complete original Urdu conversation, speaker roles,
+protected turns and a structured medicine manifest. The manifest supplies each
+exact source span, allowed English spelling and catalogue ID; it does not infer
+an unstated medicine, dose or prescription. Exact identifiers are restored from
+their mapping. Any remaining reserved prefix, including abbreviated `MF_MED_...`,
+is rejected independently of whether local medicine detection found a name.
+Cleanup and role assignment likewise reject these leaked identifiers. Prompts
+no longer demonstrate an abbreviated identifier that a model could copy.
+
+A failed translation automatically retries the affected turns against the full
+original conversation and manifest. It may return the exact allowed spelling
+without an identifier. Medicine identity, dose association and Stop/Avoid checks
+still validate the result. A fuzzy catalogue proposal still needs doctor
+confirmation. Failed recovery retains original wording for review.
+
+For a saved pre-SOAP transcript containing a damaged identifier, **Repair medicine
+wording** calls the authenticated `POST /api/workflows/{id}/repair-medicines`
+endpoint with its transcript ID and expected revision. English-only damage
+retranslates the affected turns while retaining unaffected doctor edits and
+confirmations. Damaged original turns are reconstructed from the entire preserved
+raw ASR source, with speaker roles requiring review again. The previous revision
+is kept; no medicine is guessed by placeholder order. Without a usable original
+source, recovery asks for source correction. Failed or incomplete recovery keeps
+the previous checkpoint available to retry. Recovery never generates or approves
+SOAP automatically.
+
+Synthetic checks: `tests.test_medicine_placeholders` covers shortened identifiers,
+cleanup/role leakage, full-context automatic repair, changed dose/stop rejection,
+uncertain spelling confirmation, immutable recovery, stale requests, provider
+failure and doctor authorization. `tests/test_medicine_recovery_browser.cjs`
+checks the real workspace warning/button interaction using offline fixtures.
+These are workflow/provider-contract regressions, not measurements of live ASR
+accuracy or evidence that catalogue matches establish the spoken medicine.

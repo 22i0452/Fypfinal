@@ -256,6 +256,11 @@ async def retry_conversation_translation(workflow_id: str,payload: TranscriptRev
     return await _conversation_action(request,user,workflow_id,payload,'retry_translation')
 
 
+@router.post("/{workflow_id}/repair-medicines")
+async def repair_conversation_medicines(workflow_id: str,payload: TranscriptRevisionRequest,request: Request,user: AuthUser=Depends(get_current_user)):
+    return await _conversation_action(request,user,workflow_id,payload,'repair_medicines')
+
+
 @router.post("/{workflow_id}/retry-documentation")
 async def retry_documentation(workflow_id: str, request: Request, user: AuthUser = Depends(get_current_user)):
     """Explicitly allow new audio after a failed pipeline, preserving the encounter."""
