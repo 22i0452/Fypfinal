@@ -57,18 +57,20 @@ class ContextMedicineTests(unittest.TestCase):
         adapter=ContextAdapter(mode);set_gateway(SecureLLMGateway(provider='mock',adapters={'mock':adapter}))
         return adapter
 
-    def test_entire_long_consultation_and_all_candidates_use_single_requests(self):
+    def test_entire_long_consultation_exact_names_need_only_context_request(self):
         adapter=self.setup()
         turns=[{'utterance_id':f'U{i}','speaker':'Doctor' if i%2 else 'Patient',
                 'original_text':'Take Panadol. '+('Complete source context sentence. '*100)} for i in range(25)]
         output=automatic_matches(turns,patient_context={'age':'22','current_complaint':'Abdominal pain'})
-        self.assertEqual(adapter.task_order,['medicine_context','medicine_matching'])
+        self.assertEqual(adapter.task_order,['medicine_context'])
         for call in adapter.calls:
             payload=json.loads(call['messages'][-1]['content'])
             self.assertEqual(len(payload['conversation']),25)
             self.assertEqual([t['original'] for t in payload['conversation']],[t['original_text'] for t in turns])
         self.assertEqual(len(output),25)
         self.assertTrue(all(result['context_status']=='complete' for result in output.values()))
+        self.assertTrue(all(result['mentions'][0]['status']=='exact_preserved' for result in output.values()))
+        self.assertTrue(all(result['mentions'][0]['usage']=='uncertain' for result in output.values()))
 
     def test_nonmedicine_decision_is_used_by_translation_review_and_soap(self):
         adapter=self.setup();source='We can advance the medicine review.'

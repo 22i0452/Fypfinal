@@ -183,12 +183,19 @@ def automatic_matches(turns,*,patient_ref='',patient_context=None):
                   'lookup_method':'automatic transliteration query' if query else 'local spelling/sound'}
             items.append(item)
             if not choices:continue
+            if item['exact'] and contextual[uid]['status'] == 'complete':
+                # Full-consultation entity analysis already ran. An exact
+                # catalogue spelling has nothing to rerank. This records name
+                # preservation only, never a prescription or dose decision.
+                item.update(selected_catalog_id=row['catalog_id'], status='exact_preserved')
+                continue
             jobs.append({'mention_id':mention_id,'original':source,'speaker':turn.get('speaker','Unknown'),
                          'recognized':row['source'],'exact_catalogue_wording':row['status']=='catalog_name',
                          'previous_turn':(turns[index-1].get('original_text') or turns[index-1].get('text') or '') if index>0 else '',
                          'candidates':[{'catalog_id':c['catalog_id'],'name':c['name']} for c in choices]})
         english=turn.get('clinical_english') or turn.get('text') or ''
         status='not_needed' if not items else 'local_candidates' if any(item['candidates'] for item in items) else 'llm_unavailable' if any(item['status']=='llm_unavailable' for item in items) else 'unmatched'
+        if items and all(item['status']=='exact_preserved' for item in items):status='complete'
         outputs[uid]={**contextual[uid],'context_status':contextual[uid]['status'],
                      'fingerprint':fingerprint(source,english),'mentions':items,
                      'method':'Complete consultation LLM entity identification + catalogue-only spelling verification','status':status}

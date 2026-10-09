@@ -84,7 +84,7 @@ class GroqProviderAdapter:
             raise ProviderAdapterError("Groq API key is not configured")
         from groq import Groq
 
-        self._client = Groq(api_key=cleaned)
+        self._client = Groq(api_key=cleaned, max_retries=0)
 
     def chat(
         self,
@@ -95,12 +95,14 @@ class GroqProviderAdapter:
         temperature: float,
         max_tokens: int,
         response_format: dict[str, str] | None = None,
+        timeout_seconds: float = 45.0,
     ) -> str:
         kwargs: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
+            "timeout": timeout_seconds,
         }
         if response_format:
             kwargs["response_format"] = response_format
@@ -146,6 +148,7 @@ class OpenAIProviderAdapter:
         temperature: float,
         max_tokens: int,
         response_format: dict[str, str] | None = None,
+        timeout_seconds: float = 45.0,
     ) -> str:
         payload: dict[str, Any] = {
             "model": model,
@@ -165,7 +168,7 @@ class OpenAIProviderAdapter:
             method="POST",
         )
         try:
-            with urllib_request.urlopen(request, timeout=90) as response:
+            with urllib_request.urlopen(request, timeout=timeout_seconds) as response:
                 body = json.loads(response.read().decode("utf-8"))
             return str(body["choices"][0]["message"]["content"]).strip()
         except urllib_error.HTTPError as exc:
@@ -242,6 +245,7 @@ class OpenRouterProviderAdapter:
         temperature: float,
         max_tokens: int,
         response_format: dict[str, str] | None = None,
+        timeout_seconds: float = 45.0,
     ) -> str:
         payload: dict[str, Any] = {
             "model": model,
@@ -254,7 +258,7 @@ class OpenRouterProviderAdapter:
         return self._post_json(
             "https://openrouter.ai/api/v1/chat/completions",
             payload,
-            timeout=90,
+            timeout=timeout_seconds,
             error_prefix="OpenRouter chat",
         )["choices"][0]["message"]["content"].strip()
 

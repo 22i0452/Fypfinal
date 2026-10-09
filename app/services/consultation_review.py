@@ -106,7 +106,11 @@ class ConsultationReviewService:
         event = self.c.process_trace.append(row['run_id'], stage, 'running')
         if on_event: on_event(event)
         started = time.perf_counter()
-        with collect_provider_events() as calls:
+        def progress(activity, completed):
+            event = self.c.process_trace.append(row['run_id'], stage, 'running',
+                artifact={'activity':activity,'provider_calls':completed}, duration_ms=(time.perf_counter()-started)*1000)
+            if on_event: on_event(event)
+        with collect_provider_events(on_event=progress) as calls:
             try:
                 result = function()
             except Exception:

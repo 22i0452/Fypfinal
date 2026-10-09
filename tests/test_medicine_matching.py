@@ -77,6 +77,20 @@ class AutomaticMatchingTests(unittest.TestCase):
         names=[row['name'].casefold() for row in candidates('panadole')]
         self.assertEqual(len(names),len(set(names)))
 
+    def test_long_mixed_consultation_keeps_full_context_and_reranks_only_uncertain_names(self):
+        adapter=self.setup_adapter()
+        turns=[{'utterance_id':f'U{i}','speaker':'Doctor','original_text':'Take Panadol and mortiiduom. '+('Full source sentence. '*100)} for i in range(25)]
+        outputs=automatic_matches(turns)
+        self.assertEqual(adapter.task_order,['medicine_context','medicine_matching'])
+        for call in adapter.calls:
+            payload=json.loads(call['messages'][-1]['content'])
+            self.assertEqual([row['original'] for row in payload['conversation']],[row['original_text'] for row in turns])
+        matching=json.loads(adapter.calls[-1]['messages'][-1]['content'])['mentions']
+        self.assertEqual(len(matching),25)
+        self.assertTrue(all(row['recognized']=='mortiiduom' for row in matching))
+        self.assertTrue(all(result['mentions'][0]['status']=='exact_preserved' for result in outputs.values()))
+        self.assertTrue(all(result['mentions'][1]['status']=='suggested' for result in outputs.values()))
+
     def test_brand_variant_and_new_csv_brand_are_exact(self):
         self.assertEqual([row['name'] for row in mentions('Take Panadol Extend 500 mg.')],['Panadol Extend'])
         self.assertEqual([row['name'] for row in mentions('Take Glucophage 500 mg.')],['Glucophage'])
@@ -156,7 +170,7 @@ class AutomaticMatchingTests(unittest.TestCase):
     def test_matching_runs_before_translation_and_correct_urdu_is_repaired(self):
         adapter=self.setup_adapter();adapter.set_response('translation',{'conversation':[{'utterance_id':'U1','text':'Take painkillers 500 mg.'}]})
         result=MedicalTranslator().translate_conversation([{'utterance_id':'U1','speaker':'Doctor','original_text':'پیناڈول 500 mg لیں۔'}])[0]
-        self.assertEqual(adapter.task_order,['medicine_context','medicine_matching','translation','medicine_translation_repair'])
+        self.assertEqual(adapter.task_order,['medicine_context','translation','medicine_translation_repair'])
         self.assertEqual(result['original_text'],'پیناڈول 500 mg لیں۔');self.assertEqual(result['clinical_english'],'Take Panadol 500 mg.')
         self.assertEqual(result['medicine_checks']['issues'],[])
         self.assertEqual(result['medicine_suggestions']['fingerprint'],fingerprint(result['original_text'],result['clinical_english']))

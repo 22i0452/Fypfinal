@@ -122,7 +122,7 @@ def _policies() -> dict[str, TaskPolicy]:
 
 
 def _preferred_model(task_type: str, provider: str, allowed_models: set[str]) -> str:
-    if task_type in {'medicine_matching','medicine_context','medicine_translation_repair','medicine_lookup_query','conversation_relevance','prescription_extract'}:task_type='transcript_cleanup'
+    if task_type in {'translation','soap_generation','medicine_matching','medicine_context','medicine_translation_repair','medicine_lookup_query','conversation_relevance','prescription_extract'}:task_type='transcript_cleanup'
     preferred_by_task = {
         "module2_stt": {
             "openrouter": _env("MODULE2_OPENROUTER_STT_MODEL", "openai/gpt-4o-transcribe"),
@@ -286,7 +286,7 @@ class SecureLLMGateway:
         temperature: float = 0.2,
         max_tokens: int = 1024,
         response_format: dict[str, str] | None = None,
-        timeout_seconds: float = 90.0,
+        timeout_seconds: float = 45.0,
     ) -> str:
         policy = self.policies.get(task_type)
         if not policy:
@@ -319,6 +319,10 @@ class SecureLLMGateway:
             result="allow",
             metadata={"task_type": task_type, "provider": provider_name, "model": selected_model},
         )
+        from .telemetry import remaining_budget
+        timeout_seconds = remaining_budget(timeout_seconds)
+        if timeout_seconds <= 0:
+            raise GatewaySecurityError("Processing time budget exhausted; saved sources are preserved")
         started = time.perf_counter()
         attempts = self._fallback_attempts(
             task_type=task_type,
@@ -328,6 +332,12 @@ class SecureLLMGateway:
 
         last_error: Exception | None = None
         for attempt_provider, attempt_model in attempts:
+            remaining = min(timeout_seconds-(time.perf_counter()-started), remaining_budget(timeout_seconds))
+            if remaining <= 0:
+                raise GatewaySecurityError("Provider request timed out") from last_error
+            attempt_started = time.perf_counter()
+            fallback = attempt_provider != provider_name or attempt_model != selected_model
+            provider_event(task_type, attempt_provider, attempt_model, "running", fallback)
             try:
                 result = self._adapter(attempt_provider).chat(
                     task_type=task_type,
@@ -336,6 +346,7 @@ class SecureLLMGateway:
                     temperature=temperature,
                     max_tokens=max_tokens,
                     response_format=response_format,
+                    timeout_seconds=remaining,
                 )
                 if attempt_provider != provider_name or attempt_model != selected_model:
                     audit_event(
@@ -353,16 +364,17 @@ class SecureLLMGateway:
                     )
                 if time.perf_counter() - started > timeout_seconds:
                     raise GatewaySecurityError("Provider request timed out")
-                provider_event(task_type, attempt_provider, attempt_model, "complete", attempt_provider != provider_name or attempt_model != selected_model)
+                provider_event(task_type, attempt_provider, attempt_model, "complete", fallback, (time.perf_counter()-attempt_started)*1000)
                 return str(result)
             except GatewaySecurityError:
+                provider_event(task_type, attempt_provider, attempt_model, "failed", fallback, (time.perf_counter()-attempt_started)*1000)
                 raise
             except ProviderAdapterError as exc:
-                provider_event(task_type, attempt_provider, attempt_model, "failed")
+                provider_event(task_type, attempt_provider, attempt_model, "failed", fallback, (time.perf_counter()-attempt_started)*1000)
                 last_error = exc
                 print(f"[Gateway] {task_type} via {attempt_provider}/{attempt_model} failed: {exc}")
             except Exception as exc:
-                provider_event(task_type, attempt_provider, attempt_model, "failed")
+                provider_event(task_type, attempt_provider, attempt_model, "failed", fallback, (time.perf_counter()-attempt_started)*1000)
                 last_error = exc
                 print(f"[Gateway] {task_type} via {attempt_provider}/{attempt_model} failed: {type(exc).__name__}")
         raise GatewaySecurityError("Provider request failed safely") from last_error
@@ -419,6 +431,9 @@ class SecureLLMGateway:
         )
         last_error: Exception | None = None
         for attempt_provider, attempt_model in attempts:
+            attempt_started = time.perf_counter()
+            fallback = attempt_provider != provider_name or attempt_model != selected_model
+            provider_event(task_type, attempt_provider, attempt_model, "running", fallback)
             try:
                 # OpenRouter STT rejects response_format=text; adapters normalize as needed.
                 result = self._adapter(attempt_provider).transcribe(
@@ -445,14 +460,14 @@ class SecureLLMGateway:
                         },
                     )
                     print(f"[Gateway] {task_type} fallback -> {attempt_provider}/{attempt_model}")
-                provider_event(task_type, attempt_provider, attempt_model, "complete", attempt_provider != provider_name or attempt_model != selected_model)
+                provider_event(task_type, attempt_provider, attempt_model, "complete", fallback, (time.perf_counter()-attempt_started)*1000)
                 return text
             except ProviderAdapterError as exc:
-                provider_event(task_type, attempt_provider, attempt_model, "failed")
+                provider_event(task_type, attempt_provider, attempt_model, "failed", fallback, (time.perf_counter()-attempt_started)*1000)
                 last_error = exc
                 print(f"[Gateway] {task_type} via {attempt_provider}/{attempt_model} failed: {exc}")
             except Exception as exc:
-                provider_event(task_type, attempt_provider, attempt_model, "failed")
+                provider_event(task_type, attempt_provider, attempt_model, "failed", fallback, (time.perf_counter()-attempt_started)*1000)
                 last_error = exc
                 print(f"[Gateway] {task_type} via {attempt_provider}/{attempt_model} failed: {type(exc).__name__}")
         raise GatewaySecurityError("Provider STT failed safely") from last_error

@@ -175,7 +175,7 @@ class DocumentationService:
         return [turn.model_copy(update={'medicine_context':index>0 and len(WORD_RE.findall(turn.original_text))<=5
             and bool(FRAME_RE.search(turns[index-1].original_text))}) for index,turn in enumerate(turns)]
 
-    def translate(self, utterances: list[TranscriptUtterance], *, patient: Patient) -> list[TranscriptUtterance]:
+    def translate(self, utterances: list[TranscriptUtterance], *, patient: Patient, classify_relevance: bool = True) -> list[TranscriptUtterance]:
         source = [self.utterance_payload(item) for item in utterances]
         entries = self._components()[1].translate_conversation(
             source,
@@ -197,8 +197,11 @@ class DocumentationService:
                     }
                 )
             )
+        return self.classify_relevance(translated, patient=patient) if classify_relevance else translated
+
+    def classify_relevance(self, utterances: list[TranscriptUtterance], *, patient: Patient) -> list[TranscriptUtterance]:
         from app.services.conversation_relevance import classify
-        return classify(translated, patient_context=self._patient_context(patient), patient_ref=patient.patient_id)
+        return classify(utterances, patient_context=self._patient_context(patient), patient_ref=patient.patient_id)
 
     def save_transcript(
         self,

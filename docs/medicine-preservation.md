@@ -141,8 +141,8 @@ fails on the unchanged prior commit. See the update test report for exact scope.
 
 ## Damaged identifier recovery
 
-Translation receives the complete original Urdu conversation, speaker roles,
-protected turns and a structured medicine manifest. The manifest supplies each
+Translation receives the complete original Urdu conversation, speaker roles
+and a structured medicine manifest. The manifest supplies each
 exact source span, allowed English spelling and catalogue ID; it does not infer
 an unstated medicine, dose or prescription. Exact identifiers are restored from
 their mapping. Any remaining reserved prefix, including abbreviated `MF_MED_...`,

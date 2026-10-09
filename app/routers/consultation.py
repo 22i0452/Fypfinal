@@ -157,10 +157,17 @@ async def consultation_websocket(websocket: WebSocket):
         started = time.perf_counter()
 
         provider_calls = []
+        loop = asyncio.get_running_loop()
+
+        def provider_progress(activity, completed):
+            event = container.process_trace.append(run_id, stage, 'running',
+                artifact={'activity':activity, 'provider_calls':completed},
+                duration_ms=(time.perf_counter()-started)*1000)
+            asyncio.run_coroutine_threadsafe(send({'type':'process_event', **event}), loop).result(timeout=10)
 
         async def call_provider(function, *args, **kwargs):
             nonlocal provider_calls
-            with collect_provider_events() as calls:
+            with collect_provider_events(on_event=provider_progress) as calls:
                 try:
                     return await asyncio.to_thread(function, *args, **kwargs)
                 finally:
@@ -220,11 +227,16 @@ async def consultation_websocket(websocket: WebSocket):
             container.consultation_review.prepare(workflow_id, original_transcript, run_id, session["template_id"], session["auto_soap"])
             await trace("translation", "running")
             await send({"type": "processing", "message": "Translating transcript to English..."})
-            translated = await call_provider(
-                container.documentation_service.translate,
-                diarized,
-                patient=patient,
-            )
+            # One shared budget for medicine analysis, translation, optional
+            # repair and relevance; save/display English before relevance ends.
+            def translate_and_classify():
+                translated = container.documentation_service.translate(diarized, patient=patient, classify_relevance=False)
+                container.documentation_service.save_transcript(transcript_id=transcript_id, patient_id=patient_id,
+                    encounter_id=encounter_id, utterances=translated)
+                early_payload = [container.documentation_service.utterance_payload(item, translated=True) for item in translated]
+                asyncio.run_coroutine_threadsafe(send({'type':'translation_complete', 'english_conversation':early_payload}), loop).result(timeout=10)
+                return container.documentation_service.classify_relevance(translated, patient=patient)
+            translated = await call_provider(translate_and_classify)
             transcript = container.documentation_service.save_transcript(
                 transcript_id=transcript_id,
                 patient_id=patient_id,

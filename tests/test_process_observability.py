@@ -34,8 +34,10 @@ class ProcessObservabilityTests(unittest.TestCase):
             self.assertEqual(ws.receive_json()['type'],'recording_started')
             ws.send_bytes(bytes(64000));ws.send_json({'type':'stop'})
             events=[]
+            self.received=[]
             while True:
                 item=ws.receive_json()
+                self.received.append(item)
                 if item['type']=='process_event':events.append(item)
                 if item['type'] in {'soap_note','error'}:return item,events
 
@@ -48,9 +50,32 @@ class ProcessObservabilityTests(unittest.TestCase):
         context=self.client.get('/api/workflows/context/'+self.patient.patient_id).json()
         self.assertEqual(len(context['process_trace']['events']),len(events))
         self.assertIsNone(completed[2]['artifact']['distinct_voices'])
+        activities=[e for e in events if e['artifact'].get('activity')]
+        self.assertTrue(activities)
+        self.assertTrue(any(e['artifact']['activity']['status']=='running' for e in activities))
+        self.assertTrue(any(e['artifact']['activity'].get('duration_ms') is not None for e in activities))
         self.c.auth_repository.create_doctor('Other','other@test.example','OtherPass123!')
         self.client.post('/api/auth/login',json={'email':'other@test.example','password':'OtherPass123!'})
         self.assertEqual(self.client.get('/api/workflows/context/'+self.patient.patient_id).status_code,403)
+
+    def test_english_is_saved_before_relevance_but_review_waits(self):
+        classify=self.c.documentation_service.classify_relevance
+        checked=[]
+        def inspect(turns, *, patient):
+            row=self.c.consultation_review.store.get(self.context.workflow.workflow_id)
+            saved=self.c.transcript_repository.get(row['transcript_id'])
+            self.assertEqual(row['status'],'TRANSLATING')
+            self.assertTrue(saved.utterances[0].clinical_english)
+            self.assertEqual(saved.utterances[0].clinical_english,turns[0].clinical_english)
+            checked.append(True)
+            return classify(turns,patient=patient)
+        with patch.object(self.c.documentation_service,'classify_relevance',side_effect=inspect):
+            result,events=self.capture()
+        self.assertEqual(result['type'],'soap_note');self.assertEqual(checked,[True])
+        types=[message['type'] for message in self.received]
+        self.assertEqual(types.count('translation_complete'),2)
+        completed_index=next(i for i,m in enumerate(self.received) if m['type']=='process_event' and m['stage']=='translation' and m['status']=='complete')
+        self.assertLess(types.index('translation_complete'),completed_index)
 
     def test_failure_is_persisted_at_actual_stage(self):
         with patch.object(self.c.documentation_service,'transcribe',side_effect=RuntimeError('test provider failure')):

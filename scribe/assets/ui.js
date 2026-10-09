@@ -29,8 +29,7 @@ let notesSearchQuery = "";
 let transcriptMode = "urdu";
 let assistantMessages = [];
 let assistantBusy = false;
-let authMode = "login";
-let currentUser = { name: "Shahzaib", org: "Nectar", email: "" };
+let currentUser = { name: "", org: "", email: "" };
 let activeWorkflow = null;
 let activeEncounter = null;
 let activeAppointment = null;
@@ -60,6 +59,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   renderSoapEmptyState();
   renderNoteDetail(null);
   renderPatientAssistant();
+  studioIcons();
+  unlockWorkspace();
   await Promise.all([
     fetchPatients(),
     fetchDoctorQueue(),
@@ -86,7 +87,11 @@ function greetUser() {
 async function initializeAuth() {
   try {
     const response = await fetch("/api/auth/me", { credentials: "same-origin" });
-    if (!response.ok) throw new Error("Authentication required");
+    if (response.status === 401 || response.status === 403) {
+      location.replace("/consultation/login");
+      return false;
+    }
+    if (!response.ok) throw new Error("Workspace unavailable");
     const user = await response.json();
     currentUser = {
       name: user.full_name || "Clinician",
@@ -95,26 +100,13 @@ async function initializeAuth() {
       role: user.role || "DOCTOR",
       practitionerId: user.practitioner_id || "",
     };
-    unlockWorkspace();
-    setAuthMode("login");
     return true;
   } catch {
     lockWorkspace();
-    location.replace("/consultation/login");
+    document.getElementById("workspaceBootMessage").textContent = "Unable to open the studio. Please try again.";
+    document.getElementById("workspaceBootRetry").hidden = false;
     return false;
   }
-}
-
-function setAuthMode(mode) {
-  authMode = mode === "signup" ? "signup" : "login";
-  document.getElementById("loginTabBtn").classList.toggle("active", authMode === "login");
-  document.getElementById("signupTabBtn").classList.toggle("active", authMode === "signup");
-  document.getElementById("loginPanel").classList.toggle("active", authMode === "login");
-  document.getElementById("signupPanel").classList.toggle("active", authMode === "signup");
-  document.getElementById("authHeading").textContent = authMode === "login" ? "Login" : "Create Account";
-  document.getElementById("authSubheading").textContent = authMode === "login"
-    ? "Sign in to continue to your Medflow AI workspace."
-    : "Set up a local access profile for this Medflow AI workspace.";
 }
 
 function lockWorkspace() {
@@ -125,66 +117,6 @@ function lockWorkspace() {
 function unlockWorkspace() {
   document.body.classList.remove("auth-locked");
   document.body.classList.add("auth-ready");
-}
-
-async function handleSignup(event) {
-  event.preventDefault();
-  const name = document.getElementById("signupName").value.trim();
-  const org = document.getElementById("signupOrg").value.trim();
-  const email = document.getElementById("signupEmail").value.trim().toLowerCase();
-  const password = document.getElementById("signupPassword").value;
-  const confirm = document.getElementById("signupConfirm").value;
-
-  if (!name || !email || !password) {
-    showToast("Complete all required fields before creating the account.", "error");
-    return;
-  }
-  if (password.length < 8) {
-    showToast("Use at least 8 characters for the password.", "error");
-    return;
-  }
-  if (password !== confirm) {
-    showToast("The password confirmation does not match.", "error");
-    return;
-  }
-
-  try {
-    const response = await fetch("/api/auth/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ full_name: name, email, password }),
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(apiMessage(payload, "Unable to create the account."));
-    showToast("Account created. Sign in to continue.");
-    document.getElementById("loginEmail").value = email;
-    setAuthMode("login");
-  } catch (error) {
-    showToast(error.message || "Unable to create the account.", "error");
-  }
-}
-
-async function handleLogin(event) {
-  event.preventDefault();
-  const email = document.getElementById("loginEmail").value.trim().toLowerCase();
-  const password = document.getElementById("loginPassword").value;
-  if (!email || !password) {
-    showToast("Enter your email and password to continue.", "error");
-    return;
-  }
-
-  try {
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(apiMessage(payload, "Invalid email or password."));
-    location.replace("/workspace");
-  } catch (error) {
-    showToast(error.message || "Unable to sign in.", "error");
-  }
 }
 
 function setActiveNav(view) {

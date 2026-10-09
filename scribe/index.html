@@ -5,6 +5,15 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Medflow AI | Clinical Notes Workspace</title>
+<style>
+body.auth-locked .app-shell{display:none!important}
+body.auth-ready #workspaceBoot{display:none!important}
+.workspace-boot{min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--ink,#eee8df);background:var(--bg,#111014)}
+.workspace-boot-mark svg{width:34px;height:34px;color:var(--accent,#cfb891)}
+.workspace-boot h1{font:400 42px var(--serif,Georgia,serif);margin:0}
+.workspace-boot p{font-size:13px;color:var(--ink-2,#aaa5a0);margin:0}
+.workspace-boot button{padding:10px 22px;border:1px solid var(--border,#494140);border-radius:10px;color:inherit;background:transparent}
+</style>
 <link href="/branding/icon" rel="icon" type="image/png"/>
 <link href="/assets/ui.css?v=20261008-testing" rel="stylesheet"/>
 <link rel="stylesheet" href="/assets/evidence.css?v=20261008-testing"/>
@@ -13,104 +22,11 @@
 <link rel="stylesheet" href="/assets/booking.css?v=20261008-calendar"><script src="/assets/calendar.js?v=20261008-calendar"></script>
 <link rel="stylesheet" href="/assets/medicines.css?v=20261008-catalogue"><link rel="stylesheet" href="/assets/clinical-documents.css?v=20261008-rx"/></head>
 <body class="auth-locked">
-<section class="auth-shell">
-<div class="auth-stage">
-<article class="auth-showcase glass">
-<div>
-<div class="auth-logo-wrap">
-<img alt="Medflow AI logo" class="auth-logo" src="/branding/logo"/>
-</div>
-</div>
-<div class="auth-copy">
-<div class="auth-kicker">Secure healthcare workspace</div>
-<h1>Welcome to <span>Medflow AI</span></h1>
-<p>Access the clinical workspace designed for bilingual consultation capture, SOAP documentation, patient context review, and safer note generation.</p>
-</div>
-<div class="auth-footer">Workspace access is protected by the Medflow AI backend session.</div>
-</article>
-<article class="auth-card glass">
-<div class="auth-card-header">
-<h2 id="authHeading">Login</h2>
-<p id="authSubheading">Sign in to continue to your Medflow AI workspace.</p>
-</div>
-<div class="auth-tabs">
-<button class="auth-tab active" id="loginTabBtn" onclick="setAuthMode('login')" type="button">Login</button>
-<button class="auth-tab" id="signupTabBtn" onclick="setAuthMode('signup')" type="button">Sign Up</button>
-</div>
-<section class="auth-panel active" id="loginPanel">
-<div class="auth-mode-caption">Use your clinic account to open the authorized workspace.</div>
-<form class="auth-form" onsubmit="handleLogin(event)">
-<div class="auth-field">
-<label for="loginEmail">Email</label>
-<div class="auth-input-shell">
-<svg fill="currentColor" viewbox="0 0 24 24"><path d="M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 2v.01L12 12l8-4.99V7H4Zm16 10V9.31l-7.48 4.67a1 1 0 0 1-1.04 0L4 9.31V17h16Z"></path></svg>
-<input id="loginEmail" placeholder="you@clinic.com" required="" type="email"/>
-</div>
-</div>
-<div class="auth-field">
-<label for="loginPassword">Password</label>
-<div class="auth-input-shell">
-<svg fill="currentColor" viewbox="0 0 24 24"><path d="M17 8h-1V6a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4Zm7 12H7v-8h10Z"></path></svg>
-<input id="loginPassword" placeholder="Enter your password" required="" type="password"/>
-</div>
-</div>
-<div class="auth-meta-row">
-<label class="auth-check"><input checked="" id="rememberMe" type="checkbox"/>Remember me</label>
-<button class="auth-link" onclick="showToast('Password recovery can be connected next.')" type="button">Forgot password?</button>
-</div>
-<button class="auth-submit" type="submit">Login</button>
-</form>
-<div class="auth-note">Need a local account? <button onclick="setAuthMode('signup')" type="button">Create one now</button></div>
-</section>
-<section class="auth-panel" id="signupPanel">
-<div class="auth-mode-caption">Create a development doctor account in the Medflow AI backend.</div>
-<form class="auth-form" onsubmit="handleSignup(event)">
-<div class="auth-row">
-<div class="auth-field">
-<label for="signupName">Full Name</label>
-<div class="auth-input-shell">
-<svg fill="currentColor" viewbox="0 0 24 24"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-4.42 0-8 1.79-8 4v2h16v-2c0-2.21-3.58-4-8-4Z"></path></svg>
-<input id="signupName" placeholder="Dr. Shahzaib Ali" required="" type="text"/>
-</div>
-</div>
-<div class="auth-field">
-<label for="signupOrg">Clinic or Team</label>
-<div class="auth-input-shell">
-<svg fill="currentColor" viewbox="0 0 24 24"><path d="M4 21h16v-2H4Zm2-4h3V5H6Zm5 0h2V3h-2Zm4 0h3V9h-3Z"></path></svg>
-<input id="signupOrg" placeholder="Nectar Health" type="text"/>
-</div>
-</div>
-</div>
-<div class="auth-field">
-<label for="signupEmail">Email</label>
-<div class="auth-input-shell">
-<svg fill="currentColor" viewbox="0 0 24 24"><path d="M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 2v.01L12 12l8-4.99V7H4Zm16 10V9.31l-7.48 4.67a1 1 0 0 1-1.04 0L4 9.31V17h16Z"></path></svg>
-<input id="signupEmail" placeholder="you@clinic.com" required="" type="email"/>
-</div>
-</div>
-<div class="auth-row">
-<div class="auth-field">
-<label for="signupPassword">Password</label>
-<div class="auth-input-shell">
-<svg fill="currentColor" viewbox="0 0 24 24"><path d="M17 8h-1V6a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-7-2a2 2 0 1 1 4 0v2h-4Zm7 12H7v-8h10Z"></path></svg>
-<input id="signupPassword" placeholder="Create a password" required="" type="password"/>
-</div>
-</div>
-<div class="auth-field">
-<label for="signupConfirm">Confirm Password</label>
-<div class="auth-input-shell">
-<svg fill="currentColor" viewbox="0 0 24 24"><path d="m10 15.17-2.59-2.58L6 14l4 4 8-8-1.41-1.41Z"></path></svg>
-<input id="signupConfirm" placeholder="Repeat the password" required="" type="password"/>
-</div>
-</div>
-</div>
-<label class="auth-check"><input id="signupAgree" required="" type="checkbox"/>I understand this is a development clinic account.</label>
-<button class="auth-submit" type="submit">Create account</button>
-</form>
-<div class="auth-note">Already created an account? <button onclick="setAuthMode('login')" type="button">Return to login</button></div>
-</section>
-</article>
-</div>
+<section id="workspaceBoot" class="workspace-boot" role="status" aria-live="polite">
+<div class="workspace-boot-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 10v4m4-7v10m4-13v16m4-13v10m4-7v4"/></svg></div>
+<h1>medflow</h1><p id="workspaceBootMessage">Opening your clinical studio…</p>
+<button id="workspaceBootRetry" type="button" onclick="location.reload()" hidden>Try again</button>
+<noscript><p>Enable JavaScript to open the clinical workspace.</p></noscript>
 </section><div class="app-shell"><aside class="sidebar glass"><button aria-label="Medflow home" class="brand-link" onclick="goMedflowHome()"><span class="brand-mark"><i aria-hidden="true" data-lucide="audio-lines"></i></span><span class="brand-title">medflow<span class="brand-edition">CLINICAL STUDIO</span></span></button><div class="nav-block"><button class="nav-item" data-view="dashboard" onclick="showDashboard()"><i aria-hidden="true" data-lucide="layout-grid"></i><span>Today</span></button><button class="nav-item" data-view="visit" onclick="showVisitWorkspace()"><i aria-hidden="true" data-lucide="stethoscope"></i><span>Visit</span></button><button class="nav-item" data-view="notes" onclick="showNotes()"><i aria-hidden="true" data-lucide="files"></i><span>Records</span></button></div><div class="nav-block nav-tools"><div class="nav-label">WHEN YOU NEED IT</div><button class="nav-item" data-view="assistant" onclick="showPatientAssistant()"><i aria-hidden="true" data-lucide="sparkles"></i><span>Patient insight</span></button><button class="nav-item" data-view="coding" onclick="showCodingWorkspace()"><i aria-hidden="true" data-lucide="scan-line"></i><span>Clinical coding</span></button></div><button class="nav-item" onclick="goDemoTests()" title="Repeatable demo checks"><i aria-hidden="true" data-lucide="flask-conical"></i><span>Demo testing</span></button><div class="sidebar-bottom"><div class="connection-indicator"><span id="connectionDot"></span><small id="connectionLabel">Connecting</small></div><button class="nav-item" onclick="signOut()"><i aria-hidden="true" data-lucide="log-out"></i><span>Sign out</span></button></div></aside><main class="main-shell"><header class="topbar"><div class="topbar-title"><span class="eyebrow" id="eyebrowText">TODAY’S WORKSPACE</span><h1 id="greetingText">Welcome back</h1></div><div class="topbar-actions"><a class="agent-switch" href="/Receptionist" title="Switch to the separate receptionist agent"><i data-lucide="headset"></i><span>Reception agent</span><i data-lucide="arrow-up-right"></i></a><span class="status-pill" id="workspaceStatus">Clinic session</span><button aria-label="Workspace details" class="icon-btn" onclick="showWorkspaceDetails()" title="Workspace details"><i aria-hidden="true" data-lucide="sliders-horizontal"></i></button><div class="avatar-btn">MF</div></div></header><section class="view active" id="dashboardView"><div class="page-intro"><div><span class="section-kicker">THE CLINICAL STUDIO</span><h2>Your clinic,<br/><em>in focus.</em></h2><p>A clear view of the people and visits that need you.</p></div><button class="toolbar-btn primary" onclick="showAddPatient()"><i aria-hidden="true" data-lucide="user-plus"></i>New intake</button></div><div id="handoffAccessNotice" class="handoff-access-notice" role="alert" hidden></div><article class="panel-card glass schedule-card" aria-labelledby="appointmentQueueTitle"><div class="schedule-header"><div><span class="section-kicker">YOUR SCHEDULE</span><h3 id="appointmentQueueTitle">Appointments</h3><span class="attendance-hint" id="scheduleTimezone">Clinic time</span></div><div class="schedule-tabs"><button type="button" id="scheduleTab" class="active" onclick="setScheduleTab('schedule')">Calendar <span id="appointmentCountBadge"></span></button><button type="button" id="requestsTab" onclick="setScheduleTab('requests')">Requests <span class="request-count" id="pendingRequestCount">0</span></button><button class="icon-btn" type="button" onclick="fetchDoctorQueue()" aria-label="Refresh schedule"><i data-lucide="refresh-cw"></i></button></div></div><div class="schedule-grid"><div><div id="doctorCalendar"></div><div class="calendar-legend"><span>Saved appointments</span></div><button type="button" class="note-action" onclick="scheduleToday()">Today</button></div><div class="schedule-agenda"><h4 id="scheduleDateTitle" class="schedule-date"></h4><div class="appointment-list" id="doctorAppointmentList"></div><div class="appointment-list" id="pendingRequestList" hidden></div></div></div><div id="attendancePanel" hidden></div></article><div class="dashboard-layout"><article class="panel-card glass dashboard-queue-card">
 <div class="panel-header">
 <div class="panel-title">
@@ -347,5 +263,5 @@
 <div class="dialog-actions"><button class="toolbar-btn" onclick="closeWorkflowDialog('consentDialog')" type="button">Cancel</button><button class="toolbar-btn primary" type="submit">Save choices</button></div>
 </form>
 </dialog>
-<script src="/assets/evidence.js?v=20261008-testing"></script><script src="/assets/vendor/lucide.min.js"></script><script src="/assets/voice-meter.js?v=20261008-present"></script><script src="/assets/ui.js?v=20261008-calendar"></script><script src="/assets/studio.js?v=20261008-calendar"></script><script src="/assets/process.js?v=20261008-testing"></script><script src="/assets/evidence-workspace.js?v=20261008-testing"></script><script src="/assets/guided.js?v=20261008-medicines"></script><script src="/assets/product.js?v=20261008-calendar"></script><script src="/assets/icons.js?v=20261008-testing"></script><script src="/assets/presentation.js?v=20261008-present"></script><script src="/assets/presentation-workspace.js?v=20261008-present"></script><script src="/assets/scheduling.js?v=20261008-calendar"></script><script src="/assets/medicines.js?v=20261008-catalogue"></script><script src="/assets/medicine-evidence.js?v=20261008-demo-release"></script><script src="/assets/clinical-documents.js?v=20261008-rx"></script></body>
+<script src="/assets/evidence.js?v=20261008-testing"></script><script src="/assets/vendor/lucide.min.js"></script><script src="/assets/voice-meter.js?v=20261008-present"></script><script src="/assets/ui.js?v=20261009-processing"></script><script src="/assets/studio.js?v=20261008-calendar"></script><script src="/assets/process.js?v=20261009-processing"></script><script src="/assets/evidence-workspace.js?v=20261008-testing"></script><script src="/assets/guided.js?v=20261008-medicines"></script><script src="/assets/product.js?v=20261008-calendar"></script><script src="/assets/icons.js?v=20261008-testing"></script><script src="/assets/presentation.js?v=20261008-present"></script><script src="/assets/presentation-workspace.js?v=20261008-present"></script><script src="/assets/scheduling.js?v=20261008-calendar"></script><script src="/assets/medicines.js?v=20261008-catalogue"></script><script src="/assets/medicine-evidence.js?v=20261008-demo-release"></script><script src="/assets/clinical-documents.js?v=20261008-rx"></script></body>
 </html>
