@@ -172,12 +172,20 @@ class MedicineWorkflowTests(unittest.TestCase):
 
     def test_role_assignment_cannot_rewrite_medicine_source(self):
         from unittest.mock import Mock
+        from scribe.llm_diarizer import LLMDiarizer
         wrong=Mock();wrong.diarize_transcript.return_value=[{'speaker':'Doctor','text':'میں آپ کو درد کی دوا دے رہا ہوں۔'}]
+        # Recovery helpers come from the real diarizer so medicine text stays literal
+        # while usable speaker roles are still recovered from the original ASR.
+        real=LLMDiarizer()
+        for name in ('_cue_based_diarize','_split_mixed_speaker_turns','_relabel_turns','_fallback_diarize','_infer_relations','_with_identity','_is_usable_diarization'):
+            setattr(wrong,name,getattr(real,name))
         with patch.object(self.c.documentation_service,'_components',return_value=(wrong,None,None)):
             turns=self.c.documentation_service.diarize('میں آپ کو پیناڈول دے رہا ہوں۔',patient=self.patient,transcript_id='TRN-SYNTHETIC')
         self.assertIn('MF_MED_',wrong.diarize_transcript.call_args.args[0])
         self.assertEqual(turns[0].original_text,'میں آپ کو پیناڈول دے رہا ہوں۔')
-        self.assertEqual(turns[0].speaker,Speaker.UNKNOWN);self.assertTrue(turns[0].needs_review)
+        self.assertIn('پیناڈول',turns[0].original_text)
+        self.assertNotIn('درد کی دوا',turns[0].original_text)
+        self.assertEqual(turns[0].speaker,Speaker.DOCTOR)
 
     def medicine_capture(self,source,target,auto=False):
         def diarize(text,patient,transcript_id):

@@ -59,7 +59,10 @@ async def legacy_patient_page(patient_ref: str, request: Request):
 async def workspace(request: Request):
     if not _authenticated(request):
         return RedirectResponse("/consultation/login", status_code=302)
-    return FileResponse(MODULE2_DIR / "index.html", media_type="text/html")
+    response = FileResponse(MODULE2_DIR / "index.html", media_type="text/html")
+    # Prevent stale auth-locked HTML from being painted after a fresh sign-in.
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @router.get("/module2")

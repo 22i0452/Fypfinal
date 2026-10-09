@@ -96,10 +96,12 @@ async function initializeAuth() {
       practitionerId: user.practitioner_id || "",
     };
     unlockWorkspace();
-    setAuthMode("login");
     return true;
   } catch {
-    lockWorkspace();
+    // Keep the embedded login shell hidden and leave immediately. Calling
+    // lockWorkspace() here briefly painted the old login UI before redirect.
+    document.body.classList.add("auth-booting");
+    document.body.classList.remove("auth-ready");
     location.replace("/consultation/login");
     return false;
   }
@@ -119,11 +121,11 @@ function setAuthMode(mode) {
 
 function lockWorkspace() {
   document.body.classList.add("auth-locked");
-  document.body.classList.remove("auth-ready");
+  document.body.classList.remove("auth-ready", "auth-booting");
 }
 
 function unlockWorkspace() {
-  document.body.classList.remove("auth-locked");
+  document.body.classList.remove("auth-locked", "auth-booting");
   document.body.classList.add("auth-ready");
 }
 

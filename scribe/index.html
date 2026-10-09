@@ -6,14 +6,22 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Medflow AI | Clinical Notes Workspace</title>
 <link href="/branding/icon" rel="icon" type="image/png"/>
-<link href="/assets/ui.css?v=20261008-testing" rel="stylesheet"/>
+<link href="/assets/ui.css?v=20261009-review-check" rel="stylesheet"/>
 <link rel="stylesheet" href="/assets/evidence.css?v=20261008-testing"/>
-<link rel="stylesheet" href="/assets/guided.css?v=20261008-testing"/><link rel="stylesheet" href="/assets/product.css?v=20261008-testing"/><link rel="stylesheet" href="/assets/display.css?v=20261008-present"><script src="/assets/display.js?v=20261008-present"></script>
+<link rel="stylesheet" href="/assets/guided.css?v=20261008-testing"/><link rel="stylesheet" href="/assets/product.css?v=20261008-testing"/><link rel="stylesheet" href="/assets/display.css?v=20261009-review-check"><script src="/assets/display.js?v=20261008-present"></script>
 <link rel="stylesheet" href="/assets/presentation.css?v=20261008-present">
-<link rel="stylesheet" href="/assets/booking.css?v=20261008-calendar"><script src="/assets/calendar.js?v=20261008-calendar"></script>
-<link rel="stylesheet" href="/assets/medicines.css?v=20261008-catalogue"></head>
-<body class="auth-locked">
-<section class="auth-shell">
+<link rel="stylesheet" href="/assets/booking.css?v=20261009-review-check"><script src="/assets/calendar.js?v=20261008-calendar"></script>
+<link rel="stylesheet" href="/assets/medicines.css?v=20261008-catalogue"/>
+<style id="auth-boot">
+  /* Workspace HTML is only served after a server session check. Never paint the
+     embedded login shell while /api/auth/me resolves — that flash looked like
+     the previous login UI for about a second after Sign in. */
+  body > .auth-shell{display:none!important}
+  body.auth-booting > .app-shell{visibility:hidden}
+</style>
+</head>
+<body class="auth-ready auth-booting">
+<section class="auth-shell" hidden>
 <div class="auth-stage">
 <article class="auth-showcase glass">
 <div>
@@ -347,5 +355,5 @@
 <div class="dialog-actions"><button class="toolbar-btn" onclick="closeWorkflowDialog('consentDialog')" type="button">Cancel</button><button class="toolbar-btn primary" type="submit">Save choices</button></div>
 </form>
 </dialog>
-<script src="/assets/evidence.js?v=20261008-testing"></script><script src="/assets/vendor/lucide.min.js"></script><script src="/assets/voice-meter.js?v=20261008-present"></script><script src="/assets/ui.js?v=20261008-calendar"></script><script src="/assets/studio.js?v=20261008-calendar"></script><script src="/assets/process.js?v=20261008-testing"></script><script src="/assets/evidence-workspace.js?v=20261008-testing"></script><script src="/assets/guided.js?v=20261008-medicines"></script><script src="/assets/product.js?v=20261008-calendar"></script><script src="/assets/icons.js?v=20261008-testing"></script><script src="/assets/presentation.js?v=20261008-present"></script><script src="/assets/presentation-workspace.js?v=20261008-present"></script><script src="/assets/scheduling.js?v=20261008-calendar"></script><script src="/assets/medicines.js?v=20261008-catalogue"></script><script src="/assets/medicine-evidence.js?v=20261008-demo-release"></script></body>
+<script src="/assets/evidence.js?v=20261008-testing"></script><script src="/assets/vendor/lucide.min.js"></script><script src="/assets/voice-meter.js?v=20261008-present"></script><script src="/assets/ui.js?v=20261009-auth-boot"></script><script src="/assets/studio.js?v=20261008-calendar"></script><script src="/assets/process.js?v=20261008-testing"></script><script src="/assets/evidence-workspace.js?v=20261008-testing"></script><script src="/assets/guided.js?v=20261009-soap-continue"></script><script src="/assets/product.js?v=20261008-calendar"></script><script src="/assets/icons.js?v=20261008-testing"></script><script src="/assets/presentation.js?v=20261008-present"></script><script src="/assets/presentation-workspace.js?v=20261008-present"></script><script src="/assets/scheduling.js?v=20261009-no-otp-alt"></script><script src="/assets/medicines.js?v=20261009-soap-continue"></script><script src="/assets/medicine-evidence.js?v=20261008-demo-release"></script></body>
 </html>

@@ -53,7 +53,7 @@ GROUPS={'high_fever':'fever','mild_fever':'fever','fever_unspecified':'fever',
 
 @lru_cache(maxsize=1)
 def dataset():
-    data=json.loads(DATA_PATH.read_text())
+    data=json.loads(DATA_PATH.read_text(encoding='utf-8'))
     if data.get('version')!=1 or not isinstance(data.get('patterns'),list):raise ValueError('Invalid symptom reference')
     return data
 

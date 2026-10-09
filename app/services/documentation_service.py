@@ -146,34 +146,150 @@ class DocumentationService:
         transcript_id: str,
     ) -> list[TranscriptUtterance]:
         patient_context = self._patient_context(patient)
-        protected_text,medicine_rows=protect(str(transcript_text),transcript_id)
-        entries = self._components()[0].diarize_transcript(
+        source_text = str(transcript_text)
+        diarizer = self._components()[0]
+        protected_text, medicine_rows = protect(source_text, transcript_id)
+        entries = diarizer.diarize_transcript(
             protected_text,
             patient_context=patient_context,
             patient_ref=patient.patient_id,
         )
         for entry in entries:
-            original=restore(str(entry.get('original_text') or entry.get('text') or ''),medicine_rows,english=False)
-            entry.update(original_text=original,text=original)
-        combined=' '.join(str(entry.get('original_text') or '') for entry in entries)
-        if translation_issues(str(transcript_text),combined,[{**row,'status':'literal'} for row in medicine_rows]):
-            # Role assignment cannot change source medicines. Fall back to an
-            # explicit role-review turn rather than accept rewritten evidence.
-            entries=[]
-        if not entries:
-            entries = [
+            original = restore(
+                str(entry.get("original_text") or entry.get("text") or ""),
+                medicine_rows,
+                english=False,
+            )
+            entry.update(original_text=original, text=original)
+        combined = " ".join(str(entry.get("original_text") or "") for entry in entries)
+        medicine_safe = not translation_issues(
+            source_text,
+            combined,
+            [{**row, "status": "literal"} for row in medicine_rows],
+        )
+        if not medicine_safe or not entries:
+            # Never publish rewritten medicine evidence. Prefer recovering roles
+            # from the original ASR, or keep LLM speakers with literal source text,
+            # instead of collapsing the visit into one Unknown undiarized blob.
+            recovered = self._recover_roles_from_source(
+                diarizer,
+                source_text,
+                patient_context=patient_context,
+            )
+            preserved = self._preserve_speakers_with_source(entries, source_text, diarizer)
+            if recovered and (
+                not preserved
+                or sum(1 for item in recovered if str(item.get("speaker") or "").title() != "Unknown")
+                >= sum(1 for item in preserved if str(item.get("speaker") or "").title() != "Unknown")
+            ):
+                entries = recovered
+            elif preserved:
+                entries = preserved
+            else:
+                entries = [
+                    {
+                        "utterance_id": "U1",
+                        "speaker": "Unknown",
+                        "original_text": source_text,
+                        "text": source_text,
+                        "needs_review": True,
+                    }
+                ]
+        from medflow.medicine_matching import FRAME_RE, WORD_RE
+
+        turns = [self._utterance(transcript_id, entry, index) for index, entry in enumerate(entries, start=1)]
+        return [
+            turn.model_copy(
+                update={
+                    "medicine_context": index > 0
+                    and len(WORD_RE.findall(turn.original_text)) <= 5
+                    and bool(FRAME_RE.search(turns[index - 1].original_text))
+                }
+            )
+            for index, turn in enumerate(turns)
+        ]
+
+    @staticmethod
+    def _recover_roles_from_source(diarizer, source_text: str, *, patient_context: dict[str, Any]) -> list[dict]:
+        """Assign speakers on the original ASR text without allowing medicine rewrites."""
+        text = str(source_text or "").strip()
+        if len(text) < 20:
+            return []
+        try:
+            draft = diarizer._cue_based_diarize(text)
+            draft = diarizer._split_mixed_speaker_turns(draft)
+            draft = diarizer._relabel_turns(draft)
+            if not diarizer._is_usable_diarization(draft):
+                draft = diarizer._fallback_diarize(text)
+                draft = diarizer._split_mixed_speaker_turns(draft)
+                draft = diarizer._relabel_turns(draft)
+            draft = diarizer._infer_relations(draft, patient_context)
+            recovered = diarizer._with_identity(draft)
+        except Exception:
+            return []
+        if not recovered:
+            return []
+        combined = " ".join(str(item.get("original_text") or item.get("text") or "") for item in recovered)
+        # Cue recovery must still preserve every source medicine name literally.
+        if translation_issues(text, combined):
+            return []
+        known = sum(1 for item in recovered if str(item.get("speaker") or "").title() != "Unknown")
+        if known == 0 and len(recovered) <= 1:
+            return []
+        for item in recovered:
+            item["needs_review"] = bool(item.get("needs_review")) or str(item.get("speaker") or "").title() == "Unknown"
+        return recovered
+
+    @staticmethod
+    def _preserve_speakers_with_source(entries: list[dict], source_text: str, diarizer) -> list[dict]:
+        """Keep useful LLM speakers while forcing literal original ASR wording."""
+        text = str(source_text or "").strip()
+        if not entries or not text:
+            return []
+        known = [
+            entry
+            for entry in entries
+            if str(entry.get("speaker") or "").title() not in {"", "Unknown"}
+        ]
+        if not known:
+            return []
+        if len(entries) == 1:
+            speaker = str(known[0].get("speaker") or "Unknown").title()
+            return [
                 {
-                    "utterance_id": "U1",
-                    "speaker": "Unknown",
-                    "original_text": transcript_text,
-                    "text": transcript_text,
+                    "utterance_id": str(entries[0].get("utterance_id") or "U1"),
+                    "speaker": speaker,
+                    "speaker_relation": entries[0].get("speaker_relation") or entries[0].get("relation"),
+                    "addressed_to": entries[0].get("addressed_to"),
+                    "original_text": text,
+                    "text": text,
                     "needs_review": True,
                 }
             ]
-        from medflow.medicine_matching import FRAME_RE,WORD_RE
-        turns=[self._utterance(transcript_id, entry, index) for index, entry in enumerate(entries, start=1)]
-        return [turn.model_copy(update={'medicine_context':index>0 and len(WORD_RE.findall(turn.original_text))<=5
-            and bool(FRAME_RE.search(turns[index-1].original_text))}) for index,turn in enumerate(turns)]
+        try:
+            units = diarizer._split_units(text)
+        except Exception:
+            return []
+        if len(units) != len(entries):
+            return []
+        preserved = []
+        for index, (entry, unit) in enumerate(zip(entries, units), start=1):
+            speaker = str(entry.get("speaker") or "Unknown").title()
+            preserved.append(
+                {
+                    "utterance_id": str(entry.get("utterance_id") or f"U{index}"),
+                    "speaker": speaker if speaker in {"Doctor", "Patient", "Nurse", "Attendant", "Unknown"} else "Unknown",
+                    "speaker_relation": entry.get("speaker_relation") or entry.get("relation"),
+                    "addressed_to": entry.get("addressed_to"),
+                    "original_text": unit,
+                    "text": unit,
+                    "needs_review": True,
+                }
+            )
+        combined = " ".join(item["original_text"] for item in preserved)
+        if translation_issues(text, combined):
+            return []
+        return preserved
 
     def translate(self, utterances: list[TranscriptUtterance], *, patient: Patient) -> list[TranscriptUtterance]:
         source = [self.utterance_payload(item) for item in utterances]

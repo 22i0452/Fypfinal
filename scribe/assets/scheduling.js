@@ -79,12 +79,11 @@ async function saveAttendanceResponse(response){
 // Manual staff review is the default. OTP remains an explicit optional path.
 const scheduleOtp=requestPatientOtp;
 requestPatientOtp=async function(){renderPatientDetailsReview();document.getElementById('patientDetailsReview')?.scrollIntoView({behavior:'smooth',block:'center'});};
-async function useOptionalPhoneOtp(){await scheduleOtp();}
 function renderPatientDetailsReview(){
  const root=document.getElementById('patientDetailsReview');if(!root)return;
  root.hidden=!selectedPatient||!activeWorkflow||activeWorkflow.state!=='PATIENT_UNVERIFIED';if(root.hidden){root.dataset.workflow='';return;}
  const key=activeWorkflow.workflow_id+':'+activeWorkflow.version;
- if(root.dataset.workflow!==key){root.dataset.workflow=key;root.innerHTML=`<div class="choice-heading">${studioIcon('user-check')}<div><h4>Review patient details</h4><p>Check this name and intake against the person attending.</p></div></div><label class="review-choice"><input type="checkbox" id="patientDetailsChecked">I checked the patient’s name and intake details.</label><div class="attendance-options"><button class="toolbar-btn primary" id="reviewPatientDetailsBtn" type="button" onclick="savePatientDetailsReview()">${studioIcon('check')}Confirm details reviewed</button><button class="note-action" type="button" onclick="useOptionalPhoneOtp()">Use phone OTP instead</button></div><p class="attendance-hint">Recorded as staff review. This does not verify phone ownership or attendance.</p>`;}
+ if(root.dataset.workflow!==key){root.dataset.workflow=key;root.innerHTML=`<div class="choice-heading">${studioIcon('user-check')}<div><h4>Review patient details</h4><p>Check this name and intake against the person attending.</p></div></div><label class="review-choice"><input type="checkbox" id="patientDetailsChecked">I checked the patient’s name and intake details.</label><div class="attendance-options"><button class="toolbar-btn primary" id="reviewPatientDetailsBtn" type="button" onclick="savePatientDetailsReview()">${studioIcon('check')}Confirm details reviewed</button></div><p class="attendance-hint">Recorded as staff review. This does not verify phone ownership or attendance.</p>`;}
  root.querySelectorAll('button,input').forEach(x=>x.disabled=visitLocked());studioIcons();
 }
 async function savePatientDetailsReview(){

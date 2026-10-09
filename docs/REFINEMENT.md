@@ -58,7 +58,7 @@ The doctor workspace now presents four stages: **Prepare → Consult → Review 
 
 ## Validation
 
-See `VALIDATION.md` for the checked flows and remaining environment limits. The redesign does not introduce new models or claim to retrain the existing diarization, STT, translation, or SOAP providers. Provider selection still comes from the application's environment configuration.
+See [`VALIDATION.md`](VALIDATION.md) for the checked flows and remaining environment limits. The redesign does not introduce new models or claim to retrain the existing diarization, STT, translation, or SOAP providers. Provider selection still comes from the application's environment configuration.
 
 
 ## Process and voice refinement

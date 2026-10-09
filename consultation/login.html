@@ -6,9 +6,9 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Medflow AI | Clinic Access</title>
 <link href="/branding/icon" rel="icon" type="image/png"/>
-<link href="/assets/ui.css?v=20261007-studio" rel="stylesheet"/>
+<link href="/assets/ui.css?v=20261009-auth-boot" rel="stylesheet"/>
 
-<link rel="stylesheet" href="/assets/display.css?v=20261008-present"><script src="/assets/display.js?v=20261008-present"></script>
+<link rel="stylesheet" href="/assets/display.css?v=20261009-autofill"><script src="/assets/display.js?v=20261008-present"></script>
 </head>
 <body class="auth-page auth-locked">
 <main class="auth-shell">
@@ -164,7 +164,8 @@
           "Signing in..."
         );
         const requestedNext = new URLSearchParams(window.location.search).get('next');
-        window.location.assign(['/testing','/receptionist'].includes(requestedNext) ? requestedNext : '/workspace');
+        // replace() avoids keeping the login page in history and reduces flash of the prior UI
+        window.location.replace(['/testing','/receptionist'].includes(requestedNext) ? requestedNext : '/workspace');
       } catch (error) {
         showMessage(error.message || "Unable to sign in.", "error");
       }

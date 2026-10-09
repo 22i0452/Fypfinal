@@ -5,17 +5,17 @@ It includes persistent PostgreSQL records, three fictional doctor/patient profil
 same-server APIs/WebSockets, medicine evidence and PDF exports. No Replit Agent
 coding is needed; configure the database and secrets, then publish.
 
-**Reception booking and attendance:** inline department/doctor cards and real slot calendars replace visible booking dropdowns. The doctor workspace separates the schedule from patient records, defaults to staff detail review with optional OTP, and records attend/change/cancel responses separately from clinic approval. Notification delivery and the patient dashboard remain next-phase work. See [BOOKING_EXPERIENCE.md](BOOKING_EXPERIENCE.md).
+**Reception booking and attendance:** inline department/doctor cards and real slot calendars replace visible booking dropdowns. The doctor workspace separates the schedule from patient records, defaults to staff detail review with optional OTP, and records attend/change/cancel responses separately from clinic approval. Notification delivery and the patient dashboard remain next-phase work. See [BOOKING_EXPERIENCE.md](docs/BOOKING_EXPERIENCE.md).
 
-**Optional presentation:** the **Display settings** monitor icon on every active page controls website-wide Dark/Light, 80–160% page zoom, Reset and supported-browser full screen. Preferences carry across home, sign-in, reception, doctor and testing screens. **Present SOAP**, **Present codes** and **Present handoff** animate returned results over 12–13 seconds with Pause, Skip, Replay and expansion. Saving stays immediate; playback makes no API requests. See [PRESENTATION.md](PRESENTATION.md).
+**Optional presentation:** the **Display settings** monitor icon on every active page controls website-wide Dark/Light, 80–160% page zoom, Reset and supported-browser full screen. Preferences carry across home, sign-in, reception, doctor and testing screens. **Present SOAP**, **Present codes** and **Present handoff** animate returned results over 12–13 seconds with Pause, Skip, Replay and expansion. Saving stays immediate; playback makes no API requests. See [PRESENTATION.md](docs/PRESENTATION.md).
 
-**Demo testing report (Batch 5):** open **Demo testing** in the doctor workspace or the home footer, then run 16 repeatable fictional scenarios. No supplied dataset or provider credits are needed in synthetic mode. Results include actual assertions/timings, history, cancellation and JSON export. Optional live text checks use the existing OpenRouter key and require explicit opt-in. See [PROCESS_STUDIO.md](PROCESS_STUDIO.md) for setup and limits.
+**Demo testing report (Batch 5):** open **Demo testing** in the doctor workspace or the home footer, then run 16 repeatable fictional scenarios. No supplied dataset or provider credits are needed in synthetic mode. Results include actual assertions/timings, history, cancellation and JSON export. Optional live text checks use the existing OpenRouter key and require explicit opt-in. See [PROCESS_STUDIO.md](docs/PROCESS_STUDIO.md) for setup and limits.
 
-**Connected product (Batches 2–4):** the public home at `/` opens AI Receptionist and Doctor Workspace. Saved SOAP has a visible **ICD-10 / CPT** action; code suggestions link to their exact SOAP version and original conversation. Patient Portal is marked **Coming soon**. See [PROCESS_STUDIO.md](PROCESS_STUDIO.md) and [VALIDATION.md](VALIDATION.md) for setup and measured checks.
+**Connected product (Batches 2–4):** the public home at `/` opens AI Receptionist and Doctor Workspace. Saved SOAP has a visible **ICD-10 / CPT** action; code suggestions link to their exact SOAP version and original conversation. Patient Portal is marked **Coming soon**. See [PROCESS_STUDIO.md](docs/PROCESS_STUDIO.md) and [VALIDATION.md](docs/VALIDATION.md) for setup and measured checks.
 
-**Process and voice refinement:** see [PROCESS_STUDIO.md](PROCESS_STUDIO.md) for separate agent workspaces, actual stage events, source inspection, role correction, voice recovery and Replit update instructions.
+**Process and voice refinement:** see [PROCESS_STUDIO.md](docs/PROCESS_STUDIO.md) for separate agent workspaces, actual stage events, source inspection, role correction, voice recovery and Replit update instructions.
 
-**Refined web workspace:** see [REFINEMENT.md](REFINEMENT.md) for the new clinical studio, guided encounter flow, recovery changes, and validation.
+**Refined web workspace:** see [REFINEMENT.md](docs/REFINEMENT.md) for the new clinical studio, guided encounter flow, recovery changes, and validation.
 
 
 **MedFlowAI** is a Final Year Project (FYP) that builds an AI-assisted clinic workflow for Urdu-speaking patients and doctors. The system covers the full path from front-desk intake to consultation documentation:
@@ -465,6 +465,13 @@ Architecture and status docs:
 - [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md)
 - [`docs/security/essential-guardrails.md`](docs/security/essential-guardrails.md)
 - [`docs/TEST_CASES.md`](docs/TEST_CASES.md)
+- [`docs/BOOKING_EXPERIENCE.md`](docs/BOOKING_EXPERIENCE.md)
+- [`docs/PRESENTATION.md`](docs/PRESENTATION.md)
+- [`docs/PROCESS_STUDIO.md`](docs/PROCESS_STUDIO.md)
+- [`docs/REFINEMENT.md`](docs/REFINEMENT.md)
+- [`docs/VALIDATION.md`](docs/VALIDATION.md)
+- [`docs/replit.md`](docs/replit.md)
+- [`docs/replit-demo-publish.md`](docs/replit-demo-publish.md)
 
 ---
 

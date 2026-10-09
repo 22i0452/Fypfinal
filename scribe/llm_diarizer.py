@@ -620,6 +620,9 @@ Keep all content.
                 doctor_score += 2
         if re.search(r"(دوا|دوائیاں|ٹیسٹ|لکھ|تجویز|آرام کریں|معائنہ|احتیاط|پہلی چیز|دوسری چیز|سوجن)", unit):
             doctor_score += 2
+        # Clinician prescribing / giving medicine to the patient.
+        if re.search(r"میں\s+آپ\s+کو|آپ\s+کو\s+.+(?:دے|لیں|لینی|لینے)|دے\s+رہ[ایا]\s+ہوں", unit):
+            doctor_score += 3
         if re.search(r"(درد|بخار|تکلیف|مجھے|میرے|ڈاکٹر صاحب|بائیک|حادثہ)", unit):
             patient_score += 2
         if unit.startswith("اسلام علیکم") or unit.startswith("السلام علیکم"):
@@ -1011,6 +1014,20 @@ Keep all content.
         if not units:
             return []
         if len(units) == 1:
+            # Long Whisper blobs often glue doctor + patient into one unit.
+            # Force role-shift splits before collapsing to a single Unknown turn.
+            forced = self._split_mixed_speaker_turns([{"speaker": "Unknown", "text": units[0]}])
+            forced = self._relabel_turns(forced)
+            if len(forced) > 1 and self._has_multiple_speakers(forced):
+                return self._postprocess(forced)
+            cued = self._cue_based_diarize(units[0])
+            if len(cued) > 1 and self._has_multiple_speakers(cued):
+                return self._postprocess(cued)
+            doctor_score, patient_score = self._score_unit(units[0])
+            if doctor_score > patient_score:
+                return [{"speaker": "Doctor", "text": units[0]}]
+            if patient_score > doctor_score:
+                return [{"speaker": "Patient", "text": units[0]}]
             return [{"speaker": "Unknown", "text": units[0]}]
         conversation: list[dict[str, str]] = []
         speaker = "Patient"

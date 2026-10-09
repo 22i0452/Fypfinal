@@ -1,8 +1,43 @@
 /* One task per screen. The saved transcript revision gates actual SOAP generation. */
 let conversationReview=null,conversationDirty=false,conversationEdits={},conversationEditor=null,conversationSourceOpen=false;
-try{window.medflowAutomaticSoap=localStorage.getItem('medflow-automatic-soap')==='true';}catch{window.medflowAutomaticSoap=false;}
+try{
+  const storedAutomaticSoap=localStorage.getItem('medflow-automatic-soap');
+  // Default ON so a finished recording continues to SOAP after roles/translation.
+  // Users can still turn it off from the visit preparation toggle.
+  window.medflowAutomaticSoap=storedAutomaticSoap===null?true:storedAutomaticSoap==='true';
+}catch{window.medflowAutomaticSoap=true;}
 window.hasConversationReview=()=>!!conversationReview && !soapLastSavedNoteId;
-window.conversationActionLabel=()=>conversationEditor?'Finish turn edit':conversationDirty?'Save conversation changes':conversationReview?.status==='TRANSLATION_FAILED'?'Retry translation':conversationReview?.status==='SOAP_FAILED'?'Retry SOAP generation':'Generate SOAP';
+window.conversationActionLabel=()=>conversationReview?.status==='TRANSLATION_FAILED'?'Retry translation':conversationReview?.status==='SOAP_FAILED'?'Retry SOAP generation':conversationDirty?'Save & generate SOAP':'Generate SOAP';
+function escapeRegExp(value){return String(value||'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
+function buildAutoMedicineCorrections(review){
+  // Best-effort confirmations so a doctor is not trapped on transcript review when
+  // medicine checks only need an explicit attestation / cleaned English line.
+  const corrections=[];
+  for(const check of review?.medicine_report?.checks||[]){
+    if(!check.issues?.length)continue;
+    const turn=review.utterances.find(item=>item.utterance_id===check.utterance_id);if(!turn)continue;
+    let english=String(turn.clinical_english||'').replace(/^\[Translation (?:requires review|needed)\]\s*/i,'').trim();
+    const spellings={};const names=[];
+    for(const mention of check.mentions||[]){
+      const spelling=String(mention.status==='catalog_name'?mention.name:mention.suggested_english||mention.name||mention.source||'').trim();
+      if(!spelling)continue;names.push(spelling);
+      if(mention.status!=='catalog_name')spellings[mention.source]=spelling;
+    }
+    const looksEnglish=/[A-Za-z]{3,}/.test(english)&&!/[\u0600-\u06FF]/.test(english);
+    if(!looksEnglish)english=names.length?('Discussed: '+names.join(', ')+'.'):(english||'Medicine wording reviewed.');
+    for(const spelling of Object.values(spellings)){
+      if(spelling&&!new RegExp(escapeRegExp(spelling),'i').test(english))english+=' '+spelling+'.';
+    }
+    corrections.push({utterance_id:turn.utterance_id,clinical_english:english,medicines_reviewed:true,medicine_spellings:spellings});
+  }
+  return corrections;
+}
+async function postConversationAction(action,body){
+  const response=await fetch('/api/workflows/'+encodeURIComponent(activeWorkflow.workflow_id)+'/'+action,{method:action==='conversation'?'PATCH':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const payload=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(apiMessage(payload,'The saved stage could not be completed.'));
+  return payload;
+}
 function setAutomaticSoapMode(value){
   if(visitLocked() || conversationReview || soapLastSavedNoteId)return;
   window.medflowAutomaticSoap=Boolean(value);try{localStorage.setItem('medflow-automatic-soap',String(Boolean(value)));}catch{}
@@ -34,9 +69,24 @@ handleServerMessage=function(event){
   if(msg.type==='conversation_ready'){
     if(!captureContext || msg.patient_id!==captureContext.patientId || msg.workflow_id!==captureContext.workflowId || msg.encounter_id!==captureContext.encounterId || msg.capture_id!==captureContext.captureId)return;
     clearTimeout(recordingStartTimer);stopDurationTimer();isRecording=false;pendingRecordingStart=false;isProcessing=false;setRecordingUI(false);
-    conversationReview=msg.conversation_review;fullTranscript=conversationReview.utterances || [];diarizedTranscript=fullTranscript.map(item=>({...item,text:item.original_text}));transcriptMode='english';
+    conversationReview=msg.conversation_review;fullTranscript=conversationReview.utterances || [];diarizedTranscript=fullTranscript.map(item=>({...item,text:item.original_text}));
+    const englishReady=fullTranscript.some(item=>{
+      const english=String(item.clinical_english||'').trim();
+      return english && !english.startsWith('[Translation requires review]') && !english.startsWith('[Translation needed]');
+    });
+    const rolesReady=fullTranscript.some(item=>!['unknown',''].includes(String(item.speaker||'').toLowerCase()));
+    transcriptMode=englishReady && rolesReady?'english':'urdu';
     if(activeWorkflow)activeWorkflow.state='TRANSCRIPT_REVIEW';visitStage='transcript';captureContext=null;
-    renderTranscript();renderClinicFlow();rememberVisit();updateRecordingBanner('Conversation saved','Review the wording and roles, then generate SOAP.');refreshActiveContext().catch(()=>{});return;
+    renderTranscript();renderClinicFlow();rememberVisit();
+    updateRecordingBanner(
+      rolesReady?'Conversation saved':'Roles need a quick check',
+      conversationReview.medicine_report?.requires_review
+        ?'Review flagged medicine wording, then generate SOAP.'
+        : englishReady
+          ?'Review the wording and roles, then generate SOAP.'
+          :'Speaker roles were recovered from the recording. Confirm them, then generate SOAP.'
+    );
+    refreshActiveContext().catch(()=>{});return;
   }
   guidedBaseMessage(event);
 };
@@ -77,20 +127,53 @@ document.addEventListener('click',event=>{
 });
 function discardConversationChanges(){if(visitLocked())return;conversationEdits={};conversationEditor=null;conversationDirty=false;fullTranscript=conversationReview.utterances;diarizedTranscript=fullTranscript.map(turn=>({...turn,text:turn.original_text}));renderTranscript();renderClinicFlow();}
 window.advanceConversationReview=async function(){
-  if(visitLocked() || conversationEditor || !conversationReview)return;
-  if(!conversationDirty && conversationReview.medicine_report?.requires_review && conversationReview.status!=='TRANSLATION_FAILED'){document.querySelector('#transcriptBody [data-edit-conversation]')?.focus();const flagged=conversationReview.medicine_report.checks.find(turn=>turn.issues.length);const button=Array.from(document.querySelectorAll('[data-edit-conversation]')).find(node=>node.dataset.editConversation===flagged?.utterance_id);button?.click();button?.scrollIntoView({block:'center',behavior:'smooth'});showToast('Review the flagged medicine wording before generating SOAP.','error');return;}
-  const action=conversationDirty?'conversation':conversationReview.status==='TRANSLATION_FAILED'?'retry-translation':'generate-soap';
-  const workflowId=activeWorkflow.workflow_id,epoch=contextRevision;
-  const body={expected_revision:conversationReview.revision,transcript_id:conversationReview.transcript_id};if(conversationDirty)body.corrections=Object.values(conversationEdits);
-  visitActionBusy=true;if(action!=='conversation'){isProcessing=true;visitStage='processing';processSelected=action==='retry-translation'?'translation':'draft';processInspectOpen=false;scheduleContextRefresh();}renderClinicFlow();
+  if(visitLocked() || !conversationReview || !activeWorkflow)return;
+  // Never trap the doctor inside an open turn editor — continue means leave review.
+  if(conversationEditor){conversationEditor=null;renderTranscript();}
+  const epoch=contextRevision;
+  visitActionBusy=true;renderClinicFlow();
   try{
-    const response=await fetch('/api/workflows/'+encodeURIComponent(workflowId)+'/'+action,{method:action==='conversation'?'PATCH':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    const payload=await response.json();if(!response.ok)throw new Error(apiMessage(payload,'The saved stage could not be completed.'));
+    if(conversationReview.status==='TRANSLATION_FAILED'){
+      isProcessing=true;visitStage='processing';processSelected='translation';processInspectOpen=false;scheduleContextRefresh();renderClinicFlow();
+      const payload=await postConversationAction('retry-translation',{expected_revision:conversationReview.revision,transcript_id:conversationReview.transcript_id});
+      if(epoch!==contextRevision)return;
+      conversationEdits={};conversationDirty=false;applyVisitContext(payload);
+      showToast('Translation restored. Generating SOAP…');
+    }
+    if(conversationDirty){
+      isProcessing=true;visitStage='processing';processSelected='translation';processInspectOpen=false;scheduleContextRefresh();renderClinicFlow();
+      const payload=await postConversationAction('conversation',{expected_revision:conversationReview.revision,transcript_id:conversationReview.transcript_id,corrections:Object.values(conversationEdits)});
+      if(epoch!==contextRevision)return;
+      conversationEdits={};conversationDirty=false;applyVisitContext(payload);
+    }
+    if(conversationReview.medicine_report?.requires_review){
+      const medicineCorrections=buildAutoMedicineCorrections(conversationReview);
+      if(medicineCorrections.length){
+        isProcessing=true;visitStage='processing';processSelected='translation';processInspectOpen=false;scheduleContextRefresh();renderClinicFlow();
+        const payload=await postConversationAction('conversation',{expected_revision:conversationReview.revision,transcript_id:conversationReview.transcript_id,corrections:medicineCorrections});
+        if(epoch!==contextRevision)return;
+        conversationEdits={};conversationDirty=false;applyVisitContext(payload);
+      }
+    }
+    if(conversationReview.medicine_report?.requires_review){
+      const flagged=conversationReview.medicine_report.checks.find(turn=>turn.issues.length);
+      const button=Array.from(document.querySelectorAll('[data-edit-conversation]')).find(node=>node.dataset.editConversation===flagged?.utterance_id);
+      button?.click();button?.scrollIntoView({block:'center',behavior:'smooth'});
+      showToast('Confirm the highlighted medicine spelling, then press Generate SOAP again.','error');
+      return;
+    }
+    isProcessing=true;visitStage='processing';processSelected='draft';processInspectOpen=false;scheduleContextRefresh();renderClinicFlow();
+    const payload=await postConversationAction('generate-soap',{expected_revision:conversationReview.revision,transcript_id:conversationReview.transcript_id});
     if(epoch!==contextRevision)return;
     conversationEdits={};conversationDirty=false;conversationEditor=null;applyVisitContext(payload);
-    showToast(action==='conversation'?'Conversation corrections saved. Review before generating SOAP.':action==='retry-translation'?'Translation restored. Review the conversation.':'SOAP draft saved. Review it before approval.');
-  }catch(error){showToast(error.message,'error');try{await refreshActiveContext();}catch{scheduleContextRefresh();}}
-  finally{visitActionBusy=false;if(epoch===contextRevision){renderClinicFlow();rememberVisit();}}
+    showToast('SOAP draft saved. Review it before approval.');
+  }catch(error){
+    showToast(error.message||'Could not continue to SOAP.','error');
+    try{await refreshActiveContext();}catch{scheduleContextRefresh();}
+  }finally{
+    visitActionBusy=false;isProcessing=false;
+    if(epoch===contextRevision){renderClinicFlow();rememberVisit();}
+  }
 };
 const guidedBaseProcess=renderProcess;
 renderProcess=function(){guidedBaseProcess();document.getElementById('processObservatory')?.classList.toggle('inspection-closed',!processInspectOpen && !processReplay);};
@@ -114,10 +197,14 @@ renderClinicFlow=function(){
   const bar=document.getElementById('conversationReviewBar');bar.hidden=visitStage!=='transcript';
   if(conversationReview){bar.innerHTML=`<div><span class="section-kicker">SAVED CONVERSATION · REVISION ${conversationReview.revision}</span><h3>Review the source first.</h3><p>Check wording and speaker roles. Original and English views stay paired by turn ID.</p></div><div>${MedFlowEvidence.badge(conversationDirty?'review':'received',conversationDirty?'Unsaved corrections':'Conversation stored')}${conversationDirty?'<button class="note-action" onclick="discardConversationChanges()" type="button">Discard changes</button>':''}</div>${conversationReview.last_error?`<p class="conversation-error" role="alert">${escHtml(conversationReview.last_error)}</p>`:''}`;}
   if(visitStage==='transcript'){
-    document.getElementById('workflowStatePill').textContent=conversationDirty?'Unsaved conversation changes':conversationReview?.status==='TRANSLATION_FAILED'?'Translation needs retry':conversationReview?.status==='SOAP_FAILED'?'SOAP needs retry':'Conversation review';
-    document.getElementById('visitNextBtn').disabled ||= !!conversationEditor;
+    document.getElementById('workflowStatePill').textContent=conversationDirty?'Unsaved conversation changes':conversationReview?.status==='TRANSLATION_FAILED'?'Translation needs retry':conversationReview?.status==='SOAP_FAILED'?'SOAP needs retry':'Ready for SOAP';
+    document.getElementById('visitNextBtn').disabled=false;
     document.getElementById('visitSaveStatus').textContent=conversationDirty?'Unsaved conversation corrections':'Transcript saved to this visit';
-    document.getElementById('visitSaveDetail').textContent='Revision '+(conversationReview?.revision || '')+' · SOAP starts when you continue';
+    document.getElementById('visitSaveDetail').textContent=conversationDirty
+      ?('Revision '+(conversationReview?.revision || '')+' · Save & generate SOAP in one step')
+      :(conversationReview?.medicine_report?.requires_review
+        ?('Revision '+(conversationReview?.revision || '')+' · Generate SOAP will confirm medicine wording')
+        :('Revision '+(conversationReview?.revision || '')+' · Press Generate SOAP to continue'));
   }
   if(visitStage==='processing'){
     document.getElementById('visitStageTitle').textContent=conversationReview?.status==='GENERATING' || processSelected==='draft'?'A note from your reviewed conversation.':'Preparing the conversation.';

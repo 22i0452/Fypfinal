@@ -60,7 +60,8 @@ renderClinicFlow=function(...args){
     if(report?.checks?.length || report?.context_unavailable_turns?.length){const detail=document.createElement('p');detail.className='medicine-review-summary';detail.textContent=conversationDirty?'Medicine checks refresh when these corrections are saved.':report.context_unavailable_turns?.length?'Full-conversation medicine context check unavailable. Original wording is preserved; review the transcript.':report.requires_review?'Review flagged medicine turns before SOAP. Original wording is preserved.':'Medicine names checked against the original turns. Doctor review remains required.';bar.append(detail);}
     if(conversationReview.raw_asr_text){const original=document.createElement('details');original.className='medicine-raw-source';original.innerHTML=`<summary>Original speech-recognition text</summary><p dir="auto">${escHtml(conversationReview.raw_asr_text)}</p><small>Preserved before cleanup. This is recognized text, not verified audio.</small>`;bar.append(original);}
     if(conversationReview.symptom_patterns)bar.insertAdjacentHTML('beforeend',symptomPatternMarkup(conversationReview.symptom_patterns,conversationDirty));
-    if(report?.requires_review && !conversationDirty && !conversationEditor && conversationReview.status!=='TRANSLATION_FAILED')document.getElementById('visitNextBtn').innerHTML=escHtml('Review medicine wording')+studioIcon('pill');
+    // Keep the primary action as Generate SOAP. Medicine attestation is handled
+    // inside advanceConversationReview so the doctor is not stuck on this page.
   }
   if(visitStage==='review' && generatedSoap?.medicine_report?.soap_issues?.length && generatedNoteState==='REVIEW_REQUIRED' && !soapDraftTouched){const button=document.getElementById('visitNextBtn');button.disabled=true;button.title='Correct the medicine wording in SOAP, then save and review the corrected version.';}
   studioIcons();

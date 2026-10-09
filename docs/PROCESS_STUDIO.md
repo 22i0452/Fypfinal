@@ -43,7 +43,7 @@ Local database and call recordings shown in the Git panel are runtime data. They
 
 ## Validation and remaining limits
 
-See `VALIDATION.md`. Synthetic browser checks verify the real browser handlers and API/workflow wiring; they do not establish live provider quality, real microphone quality, Urdu transcription accuracy or clinical validity. Incremental consultation STT, acoustic speaker counting, audio alignment and a measured accuracy evaluation remain future capabilities.
+See [`VALIDATION.md`](VALIDATION.md). Synthetic browser checks verify the real browser handlers and API/workflow wiring; they do not establish live provider quality, real microphone quality, Urdu transcription accuracy or clinical validity. Incremental consultation STT, acoustic speaker counting, audio alignment and a measured accuracy evaluation remain future capabilities.
 
 
 ## Reception speech recovery and doctor routing

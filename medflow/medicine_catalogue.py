@@ -28,7 +28,7 @@ def ordinary_brand_use(name, text, start):
 
 @lru_cache(maxsize=1)
 def catalogue():
-    data=json.loads(PATH.read_text())
+    data=json.loads(PATH.read_text(encoding='utf-8'))
     if data.get('version')!=1:raise ValueError('Invalid medicine catalogue')
     return data
 
